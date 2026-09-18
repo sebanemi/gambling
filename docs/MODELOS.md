@@ -38,11 +38,17 @@ generales `form_windows=(3, 5, 10)`:
 - Promedio `goals_for` y `goals_against` desde la perspectiva del equipo.
 - `goals_window` (settings `FEATURES_GOALS_WINDOW`, default `None` = todo el historial).
 
-### `FeatureVector.flatten()` → 88 columnas
+### `FeatureVector.flatten()` → 128 columnas
 
 8 base (`home_elo`, `away_elo`, `elo_difference`, `home_goals_for_avg`,
 `home_goals_against_avg`, `away_goals_for_avg`, `away_goals_against_avg`,
-`home_advantage`) + 2 lados × (3 ventanas overall + 2 contextos) × 8 campos.
+`home_advantage`) + 10 métricas de stats × 4 campos (`home_{m}_for_avg`,
+`home_{m}_against_avg`, `away_{m}_for_avg`, `away_{m}_against_avg`) + 2 lados ×
+(3 ventanas overall + 2 contextos) × 8 campos.
+
+Las 10 métricas de stats (`STATISTIC_METRICS` en `domain/features.py`):
+`yellow_cards`, `red_cards`, `corners`, `shots`, `shots_on_target`, `fouls`,
+`throw_ins`, `penalties`, `xg`, `possession`.
 
 Este dict plano es el `features_snapshot` persistido en `predictions`.
 
@@ -53,17 +59,20 @@ probabilidades **1X2 normalizadas a suma 1**, goles esperados (si aplica) y snap
 
 ### Poisson (`poisson.py`)
 
-Doble Poisson independiente con **ridge** y **corrección de empate**:
+Doble Poisson con **ridge** y **corrección de Dixon-Coles (1997)**:
 
 - `λ_home = exp(γ_home + attack[local] + defense[visita] + home_adv)`
 - `λ_away = exp(γ_away + attack[visita] + defense[local])`
-- Fit por máxima verosimilitud (`scipy.optimize.minimize`, método `L-BFGS-B`,
-  máximo 2000 iteraciones) minimizando NLL + `λ·(Σ attack² + Σ defense²)`.
-- Distribución conjunta en grilla 15×15; si `draw_correction ≠ 1.0` multiplica la
-  diagonal (corrección tipo Dixon-Coles) y renormaliza.
+- Fit por máxima verosimilitud (`scipy.optimize.minimize`, `L-BFGS-B`) sobre
+  NLL + `λ·(Σ attack² + Σ defense²)`.
+- **Dixon-Coles**: el factor `τ(x,y,ρ)` corrige la independencia en las celdas
+  de pocos goles (`τ(0,0)=1`, `τ(0,1)=τ(1,0)=1−ρ`, `τ(1,1)=1+ρ`). El parámetro
+  `ρ` (típicamente negativo: subestima 1-0/0-1 y sobreestima 1-1) se **estima
+  por MLE junto con el resto** (con cota en [−0.5, 0.5]), o se congela pasando
+  un valor. Corrige más la distribución del scoreline que el 1X2.
 - Devuelve goles esperados `(λ_home, λ_away)`.
 - Parámetros (settings): `MODELS_POISSON_REGULARIZATION=0.1`,
-  `MODELS_POISSON_DRAW_CORRECTION=1.0` (1.0 = sin corrección).
+  `MODELS_POISSON_RHO=<vacío>` (`None` ⇒ estima; un número lo fija).
 
 ### Elo (`elo_model.py`)
 
@@ -78,7 +87,7 @@ Convierte el rating **pre-partido** (ya viene en las features) en probabilidades
 ### ML (`ml.py`)
 
 - **Regresión logística multinomial** (`StandardScaler → LogisticRegression`,
-  `max_iter=2000`, `random_state=42`) sobre las 88 columnas.
+  `max_iter=2000`, `random_state=42`) sobre las 128 columnas.
 - Descarta columnas de varianza nula (evita NaN en el scaler).
 - Se entrena con features **anti-leakage** por partido (puerta temporal) y
   etiquetas `Outcome(1X2)` de los goles reales.
@@ -87,8 +96,14 @@ Convierte el rating **pre-partido** (ya viene en las features) en probabilidades
 ### Ensemble (`ensemble.py`)
 
 - Media ponderada de probabilidades 1X2 de `[poisson, elo, ml]`.
-- Pesos por defecto `0.4, 0.3, 0.3` (settings `MODELS_ENSEMBLE_WEIGHTS`, se normalizan).
+- Pesos por defecto (settings `MODELS_ENSEMBLE_WEIGHTS`, se normalizan) estimados
+  por **log-loss walk-forward** sobre el histórico: `0.486, 0.465, 0.049`.
+  Recalculá los tuyos con `predictor backtest` (tabla "Pesos óptimos").
 - Goles esperados = promedio solo de los modelos que los producen (poisson).
+- `ensemble_optimizer.py`: los pesos óptimos son la mezcla convexa que minimiza
+  el log-loss; el problema es **estrictamente convexo** (`logsumexp`), SLSQP
+  encuentra el óptimo global. Es un stacking de nivel 1 directo, y como las
+  muestras son walk-forward, los pesos son out-of-sample (sin leakage).
 
 ### Claves y entrenador
 
@@ -100,12 +115,13 @@ Convierte el rating **pre-partido** (ya viene en las features) en probabilidades
 
 ### Métricas (`metrics.py`)
 
-Filosofía: medir **calidad del ranking 1X2**, no la magnitud de las probabilidades.
+Filosofía: medir ranking y **calibración** de las probabilidades 1X2.
 
-- `ranking_loss = 1 − P(resultado real)` — ideal 0; estrictamente decreciente con
-  la confianza correcta.
+- `ranking_loss = 1 − P(resultado real)` — ideal 0; ranking.
+- `log_loss = −ln P(resultado real)` — propia y estrictamente calibrada.
+- `brier` — error cuadrático multiclase (0 a 2; ideal 0), mide calibración+resolución.
 - `top1_accuracy`: fracción donde `argmax(probas)` coincide con el resultado real.
-- Reporte: `matches, ranking_loss, top1_accuracy, correct_top1`.
+- Reporte: `matches, ranking_loss, log_loss, brier, top1_accuracy, correct_top1`.
 
 ### Backtest (`backtester.py`)
 
@@ -113,10 +129,16 @@ Walk-forward cronológico estricto:
 
 - `matches` ordenadas por `(date, id)`; en cada paso usa `matches[:index]`.
 - Salta el paso si `len(prior) < min_prior_matches` (default 5).
+- **Optimizado**: las features se construyen una sola vez con `FeatureStream`
+  (O(n), con la puerta por fecha anti-leakage del `FeatureBuilder`); la matriz del
+  ML se precomputa y se reutiliza por slices; el Poisson se recalienta entre pasos
+  con `warm_start` de su último punto óptimo (mismo objetivo ⇒ mismo óptimo).
 - Entrena **por paso**: Poisson y ML que no convergen se omiten en ese paso; el
   ensemble usa los miembros sobrevivientes con pesos truncados.
 - Acumula muestras auditables `(match_id, probas, hg, ag)` y agrega métricas por
   modelo. **No persiste nada.**
+- Si se pide el ensemble, con las muestras de los miembros estima **los pesos
+  óptimos del ensemble** (ver `ensemble_optimizer.py`) y los reporta.
 
 ## Parámetros efectivos
 
@@ -127,7 +149,8 @@ Walk-forward cronológico estricto:
 | `elo_home_advantage` | 60.0 | EloCalculator, FeatureVector |
 | `features_goals_window` | `None` | GoalsAverageCalculator (todo el historial) |
 | `features_home_away_window` | 5 | forma local/visitante |
-| `models_poisson_draw_correction` | 1.0 | diagonal Dixon-Coles |
+| `features_stats_window` | `None` | averages de stats (todo el historial) |
+| `models_poisson_rho` | `None` | Dixon-Coles (None ⇒ estima ρ por MLE) |
 | `models_poisson_regularization` | 0.1 | ridge attack/defense |
 | `models_elo_draw_max` | 0.30 | gaussiana de empate |
 | `models_elo_draw_sigma` | 300.0 | gaussiana de empate |

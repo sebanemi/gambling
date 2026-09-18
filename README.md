@@ -97,8 +97,10 @@ predictor backtest
   **futuros** entran como `scheduled` y se pueden predecir antes de jugarse.
   Re-importar la misma temporada actualiza su marcador (`updated_matches`).
 - **Rendimiento**: una predicción con los 4 modelos tarda ~10 s (re-entrena todo
-  el histórico). El `backtest` walk-forward es **O(n²)**: usalo sobre datasets
-  chicos o con `--min-matches` alto (1,100 partidos lo llevan a >10 min).
+  el histórico). Las features se construyen con **`FeatureStream` en O(n)** (una
+  sola pasada cronológica en vez de `build_for_match` por partido, que era
+  O(n²)/O(n³)). El `backtest` walk-forward reutiliza esa pasada + la matriz del ML
+  precomputada + el warm-start del Poisson: 300 partidos bajan de ~4 min a ~20 s.
 
 ## Comandos
 

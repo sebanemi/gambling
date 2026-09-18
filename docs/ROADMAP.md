@@ -13,10 +13,12 @@ Implementación por fases, cada una con salida verificable (tests). Estado actua
 | 7 | Providers externos | Clients HTTP para 6 fuentes + fábrica | ✅ |
 | 8 | Evaluación y backtest | `evaluate` y `backtest` walk-forward | ✅ |
 | 9 | Documentación | `README.md` completo + `docs/` | ✅ |
+| 10 | Rendimiento | `FeatureStream` O(n), backtest con matriz precomputada + warm-start Poisson | ✅ |
+| 11 | Stats ricas | Persistencia xG/posesión en BD + predicción y features para 10 métricas | ✅ |
 
 ## Notas de diseño transversal
 
 - **Determinismo**: misma configuración + mismo histórico ⇒ mismos modelos (semilla ML fija, `MODELS_ML_RANDOM_STATE=42`).
 - **Anti-leakage en tres capas**: `MatchHistoryRepository` filtra `date < cutoff`; `FeatureBuilder` re-filtra y cachea por fecha; `Backtester` itera por índice cronológico estricto.
-- **Auditabilidad**: cada predicción guarda un `features_snapshot` (JSON con las 88 features) junto a las probabilidades.
+- **Auditabilidad**: cada predicción guarda un `features_snapshot` (JSON con las 128 features) junto a las probabilidades.
 - **Sin servicios web**: todo es CLI; la persistencia es PostgreSQL vía SQLAlchemy/Alembic.

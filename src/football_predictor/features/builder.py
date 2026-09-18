@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from datetime import date
 
 from football_predictor.domain.entities import HistoricalMatch, TargetMatch
-from football_predictor.domain.features import FeatureVector
+from football_predictor.domain.features import STATISTIC_METRICS, FeatureVector
 from football_predictor.domain.protocols import HistoryProvider
 from football_predictor.features.config import FeatureConfig
 from football_predictor.features.elo import EloCalculator
@@ -64,6 +64,13 @@ class FeatureBuilder:
             away_team_matches, target.away_team_id, self._config.stats_window
         )
 
+        stat_fields: dict[str, float] = {}
+        for metric in STATISTIC_METRICS:
+            stat_fields[f"home_{metric}_for_avg"] = home_stats[f"{metric}_for"]
+            stat_fields[f"home_{metric}_against_avg"] = home_stats[f"{metric}_against"]
+            stat_fields[f"away_{metric}_for_avg"] = away_stats[f"{metric}_for"]
+            stat_fields[f"away_{metric}_against_avg"] = away_stats[f"{metric}_against"]
+
         return FeatureVector(
             match_id=target.match_id,
             home_team_id=target.home_team_id,
@@ -78,19 +85,8 @@ class FeatureBuilder:
             home_goals_against_avg=home_against,
             away_goals_for_avg=away_for,
             away_goals_against_avg=away_against,
-            home_yellow_cards_for_avg=home_stats["yellow_cards_for"],
-            home_yellow_cards_against_avg=home_stats["yellow_cards_against"],
-            away_yellow_cards_for_avg=away_stats["yellow_cards_for"],
-            away_yellow_cards_against_avg=away_stats["yellow_cards_against"],
-            home_red_cards_for_avg=home_stats["red_cards_for"],
-            home_red_cards_against_avg=home_stats["red_cards_against"],
-            away_red_cards_for_avg=away_stats["red_cards_for"],
-            away_red_cards_against_avg=away_stats["red_cards_against"],
-            home_corners_for_avg=home_stats["corners_for"],
-            home_corners_against_avg=home_stats["corners_against"],
-            away_corners_for_avg=away_stats["corners_for"],
-            away_corners_against_avg=away_stats["corners_against"],
             home_advantage=self._elo.home_advantage,
+            **stat_fields,
         )
 
     def _snapshot(self, cutoff: date) -> tuple[HistoricalMatch, ...]:

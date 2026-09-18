@@ -62,17 +62,33 @@ def test_fit_requires_history():
         PoissonModel().fit([])
 
 
-def test_draw_correction_raises_draw_probability_end_to_end():
-    # Historial de puros empates ⇒ matchup balanceado.
-    history = [hm(i, i % 7 + 1, 1, 2, 1, 1) for i in range(1, 15)]
+def test_negative_rho_shifts_scoreline_cells_per_dixon_coles():
+    # ρ negativo: sube 1-0 y 0-1, baja 1-1; 0-0 queda intacto (a escala).
+    baseline = PoissonModel(rho=0.0)
+    dc = PoissonModel(rho=-0.3)
 
-    plain = PoissonModel(draw_correction=1.0)
-    boosted = PoissonModel(draw_correction=2.0)
-    plain.fit(history)
-    boosted.fit(history)
+    j0 = baseline._joint_distribution(1.0, 1.0)
+    j1 = dc._joint_distribution(1.0, 1.0)
 
-    if boosted.draw_correction != 1.0:
-        assert boosted.predict(fv(1, 1, 2)).draw > plain.predict(fv(1, 1, 2)).draw
+    assert j1[1, 0] > j0[1, 0]
+    assert j1[0, 1] > j0[0, 1]
+    assert j1[1, 1] < j0[1, 1]
+
+
+def test_rho_fitted_is_used_for_prediction():
+    # Muchos 1-0 y 0-1 ⇒ ρ negativo óptimo (correlación en pocos goles).
+    history = [hm(i, i % 5 + 1, 1, 2, 1, 0) for i in range(1, 30)]
+    model = PoissonModel()
+    model.fit(history)
+    assert model.rho < 0.0
+    assert model.predict(fv(1, 1, 2)).home_win + model.predict(fv(1, 1, 2)).draw + model.predict(fv(1, 1, 2)).away_win == pytest.approx(1.0)
+
+
+def test_rho_out_of_range_rejected():
+    with pytest.raises(ValueError):
+        PoissonModel(rho=-0.7)
+    with pytest.raises(ValueError):
+        PoissonModel(rho=0.7)
 
 
 def test_prediction_result_normalizes_mistuned_probs():

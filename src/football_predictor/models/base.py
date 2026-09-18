@@ -52,7 +52,7 @@ class PredictionResult:
 
 @dataclass(frozen=True)
 class StatisticsPredictionResult:
-    """Esperanzas de recuentos: tarjetas y córners por equipo."""
+    """Esperanzas por equipo de las 10 métricas recolectadas."""
 
     match_id: int
     home_yellow_cards: float = 0.0
@@ -61,6 +61,20 @@ class StatisticsPredictionResult:
     away_red_cards: float = 0.0
     home_corners: float = 0.0
     away_corners: float = 0.0
+    home_shots: float = 0.0
+    away_shots: float = 0.0
+    home_shots_on_target: float = 0.0
+    away_shots_on_target: float = 0.0
+    home_fouls: float = 0.0
+    away_fouls: float = 0.0
+    home_throw_ins: float = 0.0
+    away_throw_ins: float = 0.0
+    home_penalties: float = 0.0
+    away_penalties: float = 0.0
+    home_xg: float = 0.0
+    away_xg: float = 0.0
+    home_possession: float = 0.0
+    away_possession: float = 0.0
 
 
 class Predictor(Protocol):

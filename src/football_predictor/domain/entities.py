@@ -92,12 +92,6 @@ class HistoricalMatch:
     away_xg: float | None = None
     home_possession: float | None = None
     away_possession: float | None = None
-    home_yellow_cards: int | None = None
-    away_yellow_cards: int | None = None
-    home_red_cards: int | None = None
-    away_red_cards: int | None = None
-    home_corners: int | None = None
-    away_corners: int | None = None
 
 
 @dataclass(frozen=True)

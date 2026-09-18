@@ -70,22 +70,32 @@ predictor import-data --provider standings --competition ENG.1
 ## `predict-match`
 
 ```bash
-predictor predict-match --home EQUIPO --away EQUIPO --date YYYY-MM-DD [--model M]
+predictor predict-match [--home EQUIPO] [--away EQUIPO] [--date YYYY-MM-DD] [--model M]
 ```
 
 | Opción | Default | Descripción |
 |--------|---------|-------------|
-| `--home` | **req.** | Equipo local (nombre normalizado, lookup exacto) |
-| `--away` | **req.** | Equipo visitante |
-| `--date` | **req.** | Fecha del partido (`YYYY-MM-DD`) |
+| `--home` | pregunta | Equipo local. Acepta **parciales y variantes**: `Brentford`, `brentford fc`, `Brighton`… |
+| `--away` | pregunta | Equipo visitante (igual de tolerante) |
+| `--date` | próx. programado | Fecha del partido (`YYYY-MM-DD`). Si se omite, usa el siguiente fixture programado entre ambos |
 | `--model` | `ensemble` | `poisson`, `elo`, `ml`, `ensemble` o `all` |
+
+Si omitís algún dato, la CLI te lo pregunta. La búsqueda de equipos es difusa:
+tolera mayúsculas, acentos, nombres parciales y sufijos decorativos
+(`Brentford` se resuelve a `Brentford FC`); si hay duplicados elige el equipo con más
+partidos. Si no encuentra un equipo, sugiere los nombres almacenados parecidos.
 
 Requisito: el partido debe existir en BD (importar antes con `import-data`) — puede
 ser un fixture **pasado o futuro** (`scheduled`). Debe haber histórico para entrenar.
 
 ```bash
-# Partido ya jugado (validación) o fixture futuro real:
-predictor predict-match --home "Brentford FC" --away "Chelsea FC" --date 2026-09-18
+# Con fecha (fixture ya cargado; los nombres se resuelven solos):
+predictor predict-match --home Brentford --away Chelsea --date 2026-09-18
+
+# Sin fecha: usa el próximo Brentford–Chelsea programado
+predictor predict-match --home Brentford --away Chelsea
+
+# Render de validación sobre un resultado ya jugado:
 predictor predict-match --home Arsenal --away Chelsea --date 2024-09-14 --model all
 ```
 
@@ -99,7 +109,8 @@ predictor evaluate [--model M]
 ```
 
 Evalúa predicciones persistidas sobre partidos `finished` con marcador. Reporta
-`ranking_loss` (ideal 0, `1 − P(resultado real)`) y `top1_accuracy`.
+`ranking_loss` (ideal 0), `log_loss` (−ln P(real): castiga sobreconfianza),
+`brier` (error cuadrático multiclase) y `top1_accuracy`.
 
 ```bash
 predictor evaluate                     # ensemble (default)
@@ -118,7 +129,10 @@ predictor backtest [--model M] [--min-matches N]
 | `--min-matches` | `5` | Mínimo de partidos previos por paso antes de predecir |
 
 Walk-forward: cada paso entrena solo con el pasado del partido y evalúa
-`ranking_loss`/`top1`. No persiste nada.
+`ranking_loss`/`log_loss`/`brier`/`top1`. No persiste nada. Además, con las
+muestras walk-forward estima **los pesos óptimos del ensemble** (mezcla convexa
+que minimiza el log-loss; problema convexo, óptimo global) y los sugiere. Si
+querés usarlos: `MODELS_ENSEMBLE_WEIGHTS=X,Y,Z predictor predict-match ...`.
 
 ```bash
 predictor backtest
@@ -140,7 +154,7 @@ predictor import-data --provider football-data --competition PL --season 2026
 predictor status
 
 # 4. Predecir un partido (pasado o futuro; el fixture debe existir en BD)
-predictor predict-match --home "Brentford FC" --away "Chelsea FC" --date 2026-09-18
+predictor predict-match --home Brentford --away Chelsea --date 2026-09-18
 
 # 5. Medir el modelo localmente sobre todo el histórico
 predictor backtest

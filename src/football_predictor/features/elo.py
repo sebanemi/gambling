@@ -38,6 +38,10 @@ class EloCalculator:
     def initial_rating(self) -> float:
         return self._initial
 
+    @property
+    def k_factor(self) -> float:
+        return self._k
+
     @staticmethod
     def expected_score(own_rating: float, opponent_rating: float) -> float:
         """Probabilidad esperada (modelo logístico estándar, escala 400)."""

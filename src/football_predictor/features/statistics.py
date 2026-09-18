@@ -1,12 +1,18 @@
-"""Promedios de estadísticas por equipo usando SÓLO partidos anteriores."""
+"""Promedios de estadísticas por equipo usando SÓLO partidos anteriores.
+
+El catálogo ``STATISTIC_METRICS`` centraliza QUÉ métricas de recuento
+calcular: las usan el calculador, el ``FeatureVector`` (flatten), el
+``FeatureStream`` incremental y el ``StatisticsModel`` de predicción.
+"""
 
 from collections.abc import Sequence
 
 from football_predictor.domain.entities import HistoricalMatch
+from football_predictor.domain.features import STATISTIC_METRICS
 
 
 class StatisticsAverageCalculator:
-    """Calcula promedios de tarjetas y córners de un equipo sobre su histórico previo."""
+    """Calcula promedios de estadísticas de un equipo sobre su histórico previo."""
 
     @staticmethod
     def averages_for(
@@ -18,59 +24,36 @@ class StatisticsAverageCalculator:
 
         ``window=None`` usa todo el historial; si ``window>0`` usa los
         últimos ``window`` partidos. Sin partidos → 0.0 para todo.
+        Las métricas ausentes (``None``) cuentan como 0 en la división
+        por el total de partidos del equipo.
         """
         if window and window > 0:
             team_matches = team_matches[-window:]
 
         count = len(team_matches)
+        result: dict[str, float] = {}
+        for metric in STATISTIC_METRICS:
+            result[f"{metric}_for"] = 0.0
+            result[f"{metric}_against"] = 0.0
         if count == 0:
-            return {
-                "yellow_cards_for": 0.0,
-                "yellow_cards_against": 0.0,
-                "red_cards_for": 0.0,
-                "red_cards_against": 0.0,
-                "corners_for": 0.0,
-                "corners_against": 0.0,
-            }
+            return result
 
-        yellow_for = yellow_against = 0
-        red_for = red_against = 0
-        corners_for = corners_against = 0
+        sums = {f"{metric}_{side}": 0 for metric in STATISTIC_METRICS for side in ("for", "against")}
 
         for match in team_matches:
             is_home = match.home_team_id == team_id
-            if is_home:
-                if match.home_yellow_cards is not None:
-                    yellow_for += match.home_yellow_cards
-                if match.away_yellow_cards is not None:
-                    yellow_against += match.away_yellow_cards
-                if match.home_red_cards is not None:
-                    red_for += match.home_red_cards
-                if match.away_red_cards is not None:
-                    red_against += match.away_red_cards
-                if match.home_corners is not None:
-                    corners_for += match.home_corners
-                if match.away_corners is not None:
-                    corners_against += match.away_corners
-            else:
-                if match.away_yellow_cards is not None:
-                    yellow_for += match.away_yellow_cards
-                if match.home_yellow_cards is not None:
-                    yellow_against += match.home_yellow_cards
-                if match.away_red_cards is not None:
-                    red_for += match.away_red_cards
-                if match.home_red_cards is not None:
-                    red_against += match.home_red_cards
-                if match.away_corners is not None:
-                    corners_for += match.away_corners
-                if match.home_corners is not None:
-                    corners_against += match.home_corners
+            for metric in STATISTIC_METRICS:
+                home_val = getattr(match, f"home_{metric}", None)
+                away_val = getattr(match, f"away_{metric}", None)
+                if is_home:
+                    if home_val is not None:
+                        sums[f"{metric}_for"] += home_val
+                    if away_val is not None:
+                        sums[f"{metric}_against"] += away_val
+                else:
+                    if away_val is not None:
+                        sums[f"{metric}_for"] += away_val
+                    if home_val is not None:
+                        sums[f"{metric}_against"] += home_val
 
-        return {
-            "yellow_cards_for": yellow_for / count,
-            "yellow_cards_against": yellow_against / count,
-            "red_cards_for": red_for / count,
-            "red_cards_against": red_against / count,
-            "corners_for": corners_for / count,
-            "corners_against": corners_against / count,
-        }
+        return {key: value / count for key, value in sums.items()}

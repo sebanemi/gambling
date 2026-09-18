@@ -29,6 +29,8 @@ def evaluate(
 
     table.add_row("Matches evaluated", str(report.matches))
     table.add_row("ranking_loss", f"{report.ranking_loss:.4f}")
+    table.add_row("log_loss", f"{report.log_loss:.4f}")
+    table.add_row("brier (multi)", f"{report.brier:.4f}")
     table.add_row("top1_accuracy (pos1)", f"{report.top1_accuracy:.4f}")
     table.add_row("Correct top-1", str(report.correct_top1))
 

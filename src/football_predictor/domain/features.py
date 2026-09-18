@@ -9,6 +9,19 @@ from datetime import date
 
 from pydantic import BaseModel
 
+STATISTIC_METRICS: tuple[str, ...] = (
+    "yellow_cards",
+    "red_cards",
+    "corners",
+    "shots",
+    "shots_on_target",
+    "fouls",
+    "throw_ins",
+    "penalties",
+    "xg",
+    "possession",
+)
+
 
 class FormWindow(BaseModel):
     """Estadísticas de forma en una ventana de ``played`` partidos."""
@@ -65,6 +78,34 @@ class FeatureVector(BaseModel):
     home_corners_against_avg: float = 0.0
     away_corners_for_avg: float = 0.0
     away_corners_against_avg: float = 0.0
+    home_shots_for_avg: float = 0.0
+    home_shots_against_avg: float = 0.0
+    away_shots_for_avg: float = 0.0
+    away_shots_against_avg: float = 0.0
+    home_shots_on_target_for_avg: float = 0.0
+    home_shots_on_target_against_avg: float = 0.0
+    away_shots_on_target_for_avg: float = 0.0
+    away_shots_on_target_against_avg: float = 0.0
+    home_fouls_for_avg: float = 0.0
+    home_fouls_against_avg: float = 0.0
+    away_fouls_for_avg: float = 0.0
+    away_fouls_against_avg: float = 0.0
+    home_throw_ins_for_avg: float = 0.0
+    home_throw_ins_against_avg: float = 0.0
+    away_throw_ins_for_avg: float = 0.0
+    away_throw_ins_against_avg: float = 0.0
+    home_penalties_for_avg: float = 0.0
+    home_penalties_against_avg: float = 0.0
+    away_penalties_for_avg: float = 0.0
+    away_penalties_against_avg: float = 0.0
+    home_xg_for_avg: float = 0.0
+    home_xg_against_avg: float = 0.0
+    away_xg_for_avg: float = 0.0
+    away_xg_against_avg: float = 0.0
+    home_possession_for_avg: float = 0.0
+    home_possession_against_avg: float = 0.0
+    away_possession_for_avg: float = 0.0
+    away_possession_against_avg: float = 0.0
 
     home_advantage: float
 
@@ -78,20 +119,13 @@ class FeatureVector(BaseModel):
             "home_goals_against_avg": self.home_goals_against_avg,
             "away_goals_for_avg": self.away_goals_for_avg,
             "away_goals_against_avg": self.away_goals_against_avg,
-            "home_yellow_cards_for_avg": self.home_yellow_cards_for_avg,
-            "home_yellow_cards_against_avg": self.home_yellow_cards_against_avg,
-            "away_yellow_cards_for_avg": self.away_yellow_cards_for_avg,
-            "away_yellow_cards_against_avg": self.away_yellow_cards_against_avg,
-            "home_red_cards_for_avg": self.home_red_cards_for_avg,
-            "home_red_cards_against_avg": self.home_red_cards_against_avg,
-            "away_red_cards_for_avg": self.away_red_cards_for_avg,
-            "away_red_cards_against_avg": self.away_red_cards_against_avg,
-            "home_corners_for_avg": self.home_corners_for_avg,
-            "home_corners_against_avg": self.home_corners_against_avg,
-            "away_corners_for_avg": self.away_corners_for_avg,
-            "away_corners_against_avg": self.away_corners_against_avg,
             "home_advantage": self.home_advantage,
         }
+        for metric in STATISTIC_METRICS:
+            flat[f"home_{metric}_for_avg"] = getattr(self, f"home_{metric}_for_avg")
+            flat[f"home_{metric}_against_avg"] = getattr(self, f"home_{metric}_against_avg")
+            flat[f"away_{metric}_for_avg"] = getattr(self, f"away_{metric}_for_avg")
+            flat[f"away_{metric}_against_avg"] = getattr(self, f"away_{metric}_against_avg")
         for side, form in (("home", self.home_form), ("away", self.away_form)):
             for window in (3, 5, 10):
                 window_form = getattr(form, f"overall_{window}")

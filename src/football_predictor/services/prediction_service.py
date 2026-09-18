@@ -10,7 +10,7 @@ from football_predictor.database.models.match import Match
 from football_predictor.database.repositories.match_history import MatchHistoryRepository
 from football_predictor.database.repositories.prediction import PredictionRepository
 from football_predictor.domain.entities import TargetMatch
-from football_predictor.evaluation.metrics import EvaluationReport, evaluate_model
+from football_predictor.domain.features import STATISTIC_METRICS
 from football_predictor.models.base import PredictionResult, StatisticsPredictionResult
 from football_predictor.models.statistics_model import StatisticsModel
 from football_predictor.services.model_trainer import ALL_MODELS, ModelTrainer
@@ -43,15 +43,9 @@ class PredictionService:
         all_matches = self._history.get_all_matches()
         self._stats_model.fit(all_matches)
         stats_pred = self._stats_model.expected_counts(match.home_team_id, match.away_team_id)
-        stats_result = StatisticsPredictionResult(
-            match_id=match.id,
-            home_yellow_cards=stats_pred["yellow_cards"][0],
-            away_yellow_cards=stats_pred["yellow_cards"][1],
-            home_red_cards=stats_pred["red_cards"][0],
-            away_red_cards=stats_pred["red_cards"][1],
-            home_corners=stats_pred["corners"][0],
-            away_corners=stats_pred["corners"][1],
-        )
+        fields = {f"home_{s}": stats_pred[s][0] for s in STATISTIC_METRICS}
+        fields.update({f"away_{s}": stats_pred[s][1] for s in STATISTIC_METRICS})
+        stats_result = StatisticsPredictionResult(match_id=match.id, **fields)
 
         names = ALL_MODELS if model_name == "all" else (model_name,)
         repository = PredictionRepository(self._session)
@@ -67,6 +61,6 @@ class PredictionService:
 
     def evaluate(self, model_name: str):
         from football_predictor.database.repositories.prediction import PredictionRepository
-        from football_predictor.evaluation.metrics import EvaluationReport, evaluate_model
+        from football_predictor.evaluation.metrics import evaluate_model
         samples = PredictionRepository(self._session).for_evaluation(model_name)
         return evaluate_model(model_name, samples)

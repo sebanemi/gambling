@@ -58,3 +58,31 @@ class MatchRepository:
                 Match.away_team_id == away_team_id,
             )
         )
+
+    def find_next_scheduled(
+        self, home_team_id: int, away_team_id: int, start: date
+    ) -> Match | None:
+        """Primer partido programado entre dos equipos desde `start` (inclusive)."""
+        return self._session.scalar(
+            select(Match)
+            .where(
+                Match.home_team_id == home_team_id,
+                Match.away_team_id == away_team_id,
+                Match.date >= start,
+            )
+            .order_by(Match.date)
+            .limit(1)
+        )
+
+    def upcoming(self, team_id: int, start: date, limit: int = 4) -> list[Match]:
+        """Próximos partidos de un equipo (juega de local o visitante)."""
+        rows = self._session.execute(
+            select(Match)
+            .where(
+                (Match.home_team_id == team_id) | (Match.away_team_id == team_id),
+                Match.date >= start,
+            )
+            .order_by(Match.date, Match.id)
+            .limit(limit)
+        ).scalars()
+        return list(rows)

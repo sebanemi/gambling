@@ -1,4 +1,4 @@
-"""Modelo simple para recuentos por equipo (tarjetas, córners).
+"""Modelo simple para recuentos por equipo (tarjetas, córners, tiros, xG, posesión).
 
 Usa promedios por equipo + ventaja de local (Poisson simple).
 No modela interacción ataque/defensa; solo promedios históricos con
@@ -6,20 +6,21 @@ regularización ligera hacia la media de liga.
 """
 
 import math
-from collections.abc import Sequence
 from collections import defaultdict
+from collections.abc import Sequence
 
 from football_predictor.domain.entities import HistoricalMatch
+from football_predictor.domain.features import STATISTIC_METRICS
 
 
 class StatisticsModel:
-    """Promedios de Poisson por estadística (amarillas, rojas, córners).
+    """Promedios de Poisson por estadística (10 métricas).
 
     λ_local = exp(γ_local + att_local - def_visita + adv)
     Con regularización ligera: att/def se encogen hacia 0 (media de liga).
     """
 
-    _STATS = ("yellow_cards", "red_cards", "corners")
+    _STATS = STATISTIC_METRICS
 
     def __init__(self, regularization: float = 0.1) -> None:
         self._regularization = float(regularization)
@@ -38,8 +39,6 @@ class StatisticsModel:
             return  # Sin stats → predicciones 0.0
 
         teams = sorted({m.home_team_id for m in history_with_stats} | {m.away_team_id for m in history_with_stats})
-        index = {team: i for i, team in enumerate(teams)}
-        n_teams = len(teams)
 
         for stat in self._STATS:
             filtered = [m for m in history_with_stats if getattr(m, f"home_{stat}") is not None or getattr(m, f"away_{stat}") is not None]

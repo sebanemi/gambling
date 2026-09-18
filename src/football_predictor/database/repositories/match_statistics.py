@@ -31,6 +31,10 @@ class MatchStatisticsRepository:
         away_fouls: int | None = None,
         away_throw_ins: int | None = None,
         away_penalties: int | None = None,
+        home_xg: float | None = None,
+        away_xg: float | None = None,
+        home_possession: float | None = None,
+        away_possession: float | None = None,
     ) -> MatchStatistics:
         stats = self._session.scalar(select(MatchStatistics).where(MatchStatistics.match_id == match_id))
         if stats is None:
@@ -53,6 +57,10 @@ class MatchStatisticsRepository:
         stats.away_fouls = away_fouls
         stats.away_throw_ins = away_throw_ins
         stats.away_penalties = away_penalties
+        stats.home_xg = home_xg
+        stats.away_xg = away_xg
+        stats.home_possession = home_possession
+        stats.away_possession = away_possession
 
         return stats
 

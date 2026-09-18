@@ -34,9 +34,25 @@ class MLModel:
 
         x = self._matrix(training_features, apply_mask=False)
         y = np.array([int(o) for o in outcomes], dtype=int)
+        self.fit_matrix(x, y)
+
+    @classmethod
+    def make_matrix(cls, training_features: Sequence[FeatureVector]) -> np.ndarray:
+        """Matriz (N x columnas) en el orden fijo de columnas del modelo."""
+        if not training_features:
+            raise ValueError("make_matrix requiere al menos un ejemplo")
+        columns = list(_template().flatten().keys())
+        return np.array([[fv.flatten()[column] for column in columns] for fv in training_features], dtype=float)
+
+    def fit_matrix(self, x: np.ndarray, y: np.ndarray) -> None:
+        """Entrena desde una matriz ya construida (sobre las mismas columnas)."""
+        if x.shape[0] != y.shape[0]:
+            raise ValueError("x e y deben tener la misma cantidad de filas")
+        if x.shape[0] == 0:
+            raise ValueError("MLModel.fit_matrix requiere al menos un ejemplo")
 
         if len(np.unique(y)) < 2:
-            raise ValueError("MLModel.fit requiere al menos dos resultados distintos (1X2) en el historial")
+            raise ValueError("MLModel.fit_matrix requiere al menos dos resultados distintos (1X2) en el historial")
 
         # Columnas con varianza nula (historial pequeño, features siempre 0)
         # anularían el StandardScaler con NaN: se descartan de forma fija.

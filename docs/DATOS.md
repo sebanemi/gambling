@@ -133,3 +133,13 @@ resultado se **actualizan** (contados en `updated_matches`, no como duplicados).
 La deduplicación usa la clave única
 `(competition_id, season_id, home_team_id, away_team_id, date)`; re-importar el
 mismo archivo de resultados devuelve `inserted_matches=0`.
+
+### Estadísticas por partido
+
+Si el registro trae stats (CSV o API), se persisten en `match_statistics`:
+tarjetas amarillas/rojas, corners, tiros, tiros al arco, faltas, saques de banda,
+penales, xG y posesión (10 métricas × local/visitante). Las stats se
+**actualizan siempre** al re-importar un partido (aunque ya tengan resultado), y
+una fila de stats se crea con cualquiera de las métricas presentes. Estas stats
+alimentan los promedios de `FeatureStream`/`FeatureBuilder` (features ML) y
+el `StatisticsModel` de `predict-match`.

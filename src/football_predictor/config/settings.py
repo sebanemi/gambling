@@ -69,8 +69,9 @@ class Settings(BaseSettings):
     features_stats_window: int | None = None
 
     # --- Modelos ---
-    # Corrección de empate del modelo Poisson (1.0 = sin corrección).
-    models_poisson_draw_correction: float = 1.0
+    # Factor Dixon-Coles del Poisson: None = estimar ρ por MLE junto al resto
+    # (recomendado); un valor fijo (p.ej. 0.0) lo congela.
+    models_poisson_rho: float | None = None
     # Regularización ridge sobre attack/defense del Poisson.
     models_poisson_regularization: float = 0.1
     # Modelo Elo: prob. de empate máxima y dispersión según diferencia.
@@ -78,8 +79,9 @@ class Settings(BaseSettings):
     models_elo_draw_sigma: float = 300.0
     # Modelo ML: semilla fija para determinismo.
     models_ml_random_state: int = 42
-    # Pesos del ensemble "poisson,elo,ml" (se normalizan).
-    models_ensemble_weights: str = "0.4,0.3,0.3"
+    # Pesos del ensemble "poisson,elo,ml" (se normalizan). Estimados por
+    # log-loss walk-forward sobre el histórico disponible.
+    models_ensemble_weights: str = "0.486,0.465,0.049"
 
     @property
     def database_url(self) -> str:

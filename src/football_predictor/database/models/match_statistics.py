@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from football_predictor.database.models.base import Base
@@ -29,6 +29,11 @@ class MatchStatistics(Base):
     away_fouls: Mapped[int | None] = mapped_column(Integer, nullable=True)
     away_throw_ins: Mapped[int | None] = mapped_column(Integer, nullable=True)
     away_penalties: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    home_xg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    away_xg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    home_possession: Mapped[float | None] = mapped_column(Float, nullable=True)
+    away_possession: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()

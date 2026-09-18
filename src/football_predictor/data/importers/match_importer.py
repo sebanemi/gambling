@@ -22,6 +22,20 @@ from football_predictor.utils.logging import get_logger
 log = get_logger("data.importers.match")
 
 
+_STAT_FIELDS = (
+    "home_yellow_cards", "away_yellow_cards",
+    "home_red_cards", "away_red_cards",
+    "home_corners", "away_corners",
+    "home_shots", "away_shots",
+    "home_shots_on_target", "away_shots_on_target",
+    "home_fouls", "away_fouls",
+    "home_throw_ins", "away_throw_ins",
+    "home_penalties", "away_penalties",
+    "home_xg", "away_xg",
+    "home_possession", "away_possession",
+)
+
+
 @dataclass(frozen=True)
 class ImportSummary:
     rows_read: int
@@ -110,21 +124,7 @@ class MatchImporter:
                     updated += 1
                     season_date_ranges.setdefault(season_id, []).append(record.date)
                 # Siempre actualizar estadísticas si vienen en el registro (incluso si ya tenía resultado)
-                if any(
-                    getattr(record, f, None) is not None
-                    for f in (
-                        "home_yellow_cards", "away_yellow_cards",
-                        "home_red_cards", "away_red_cards",
-                        "home_corners", "away_corners",
-                        "home_shots", "away_shots",
-                        "home_shots_on_target", "away_shots_on_target",
-                        "home_fouls", "away_fouls",
-                        "home_throw_ins", "away_throw_ins",
-                        "home_penalties", "away_penalties",
-                        "home_xg", "away_xg",
-                        "home_possession", "away_possession",
-                    )
-                ):
+                if any(getattr(record, f, None) is not None for f in _STAT_FIELDS):
                     self._upsert_stats(current.id, record)
                     stats_updated += 1
                 if not (has_score and was_scheduled):
@@ -150,14 +150,7 @@ class MatchImporter:
             season_date_ranges.setdefault(season_id, []).append(record.date)
 
             # Estadísticas del nuevo partido
-            if any(
-                getattr(record, f, None) is not None
-                for f in (
-                    "home_yellow_cards", "away_yellow_cards",
-                    "home_red_cards", "away_red_cards",
-                    "home_corners", "away_corners",
-                )
-            ):
+            if any(getattr(record, f, None) is not None for f in _STAT_FIELDS):
                 self._session.flush()
                 self._upsert_stats(match.id, record)
                 stats_updated += 1
@@ -197,6 +190,20 @@ class MatchImporter:
             away_red_cards=record.away_red_cards,
             home_corners=record.home_corners,
             away_corners=record.away_corners,
+            home_shots=record.home_shots,
+            away_shots=record.away_shots,
+            home_shots_on_target=record.home_shots_on_target,
+            away_shots_on_target=record.away_shots_on_target,
+            home_fouls=record.home_fouls,
+            away_fouls=record.away_fouls,
+            home_throw_ins=record.home_throw_ins,
+            away_throw_ins=record.away_throw_ins,
+            home_penalties=record.home_penalties,
+            away_penalties=record.away_penalties,
+            home_xg=record.home_xg,
+            away_xg=record.away_xg,
+            home_possession=record.home_possession,
+            away_possession=record.away_possession,
         )
 
     def import_masters(self) -> tuple[int, int]:

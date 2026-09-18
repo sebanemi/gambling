@@ -170,6 +170,10 @@ class SofaScoreProvider:
             away_throw_ins=stats.get("away_throw_ins"),
             home_penalties=stats.get("home_penalties"),
             away_penalties=stats.get("away_penalties"),
+            home_xg=stats.get("home_xg"),
+            away_xg=stats.get("away_xg"),
+            home_possession=stats.get("home_possession"),
+            away_possession=stats.get("away_possession"),
         )
 
     def _fetch_event_statistics(self, event_id: int) -> dict:
@@ -216,6 +220,18 @@ class SofaScoreProvider:
                     elif "penalty" in name and "saved" not in name and "won" not in name:
                         result["home_penalties"] = int(home)
                         result["away_penalties"] = int(away)
+                    elif "expected goal" in name or name in ("xg", "expected_goals", "expectedGoals"):
+                        try:
+                            result["home_xg"] = float(home)
+                            result["away_xg"] = float(away)
+                        except (ValueError, TypeError):
+                            continue
+                    elif "ball possession" in name or "possession" in name:
+                        try:
+                            result["home_possession"] = float(str(home).rstrip("%"))
+                            result["away_possession"] = float(str(away).rstrip("%"))
+                        except (ValueError, TypeError):
+                            continue
         return result
 
     def _fetch_event_incidents(self, event_id: int) -> list[dict]:

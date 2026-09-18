@@ -38,6 +38,8 @@ if (-not $ready) {
 }
 
 $env:POSTGRES_HOST = "localhost"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+$env:PYTHONIOENCODING = "utf-8"
 
 if (-not $Comando -or $Comando.Count -eq 0) {
     & $exe --help

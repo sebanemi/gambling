@@ -64,10 +64,10 @@ histórico disponible (todo el histórico para `predict-match`; solo el pasado d
 partido en el backtest).
 
 ```
-get_all_matches() → para cada partido: FeatureBuilder.build_for_match()
-   → PoissonModel.fit(matches)                 (MLE, L-BFGS-B)
+get_all_matches() → FeatureStream.build_all() (una pasada O(n))
+   → PoissonModel.fit(matches[, warm_start]) (MLE, L-BFGS-B)
    → EloModel                                (sin entrenamiento, rating es feature)
-   → MLModel.fit(features, outcomes)          (Scaler + LogisticRegression)
+   → MLModel.fit_matrix(matriz, outcomes)    (Scaler + LogisticRegression)
    → EnsembleModel([poisson, elo, ml], pesos) (media ponderada)
 ```
 
@@ -75,7 +75,7 @@ get_all_matches() → para cada partido: FeatureBuilder.build_for_match()
 
 ```
 target (match existente en BD)
-   → FeatureBuilder.build_for_match(target)       → FeatureVector (88 features planas)
+   → FeatureBuilder.build_for_match(target)       → FeatureVector (128 features planas)
    → models[name].predict(features)               → PredictionResult (1X2 + goles + snapshot)
    → PredictionRepository.upsert(match_id, model, result)  → tabla predictions
 ```

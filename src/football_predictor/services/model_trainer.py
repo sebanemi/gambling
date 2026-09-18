@@ -6,11 +6,11 @@ Los nombres de modelo son las claves de ``train_all()``:
 """
 
 from football_predictor.config.settings import Settings, get_settings
-from football_predictor.domain.entities import TargetMatch
 from football_predictor.domain.protocols import HistoryProvider
 from football_predictor.features.builder import FeatureBuilder
 from football_predictor.features.config import FeatureConfig
 from football_predictor.features.elo import EloCalculator
+from football_predictor.features.stream import FeatureStream
 from football_predictor.models.base import Predictor, outcome_from_goals
 from football_predictor.models.elo_model import EloModel
 from football_predictor.models.ensemble import EnsembleModel
@@ -64,17 +64,13 @@ class ModelTrainer:
         if not matches:
             raise ValueError("no hay partidos históricos para entrenar: importa datos primero")
 
-        builder = self.feature_builder()
-        features = []
-        outcomes = []
-        for match in matches:
-            target = TargetMatch(match_id=match.match_id, date=match.date, home_team_id=match.home_team_id, away_team_id=match.away_team_id)
-            features.append(builder.build_for_match(target))
-            outcomes.append(outcome_from_goals(match.home_goals, match.away_goals))
+        stream = FeatureStream(self._feature_config, self._elo_calculator)
+        vectors = stream.build_all(matches)
+        outcomes = [outcome_from_goals(match.home_goals, match.away_goals) for match in matches]
 
         poisson = PoissonModel(
             regularization=self._settings.models_poisson_regularization,
-            draw_correction=self._settings.models_poisson_draw_correction,
+            rho=self._settings.models_poisson_rho,
         )
         poisson.fit(matches)
 
@@ -84,7 +80,7 @@ class ModelTrainer:
         )
 
         ml = MLModel(random_state=self._settings.models_ml_random_state)
-        ml.fit(features, outcomes)
+        ml.fit(vectors, outcomes)
 
         weights = parse_ensemble_weights(self._settings.models_ensemble_weights)
         ensemble = EnsembleModel([poisson, elo, ml], weights)

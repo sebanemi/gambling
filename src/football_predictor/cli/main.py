@@ -1,3 +1,5 @@
+import sys
+
 import typer
 
 from football_predictor.cli.commands import (
@@ -9,11 +11,15 @@ from football_predictor.cli.commands import (
     predict_match,
     status,
 )
+from football_predictor.cli.commands import (
+    help as help_command,
+)
 from football_predictor.utils.logging import configure_logging
 
 app = typer.Typer(
     name="predictor",
     help="Football match analysis and prediction (statistical, auditable).",
+    epilog="Tip: corré 'predictor help' para la guía completa en español.",
     no_args_is_help=True,
     add_completion=False,
     rich_markup_mode="rich",
@@ -25,6 +31,11 @@ def main_callback(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Log a nivel DEBUG."),
 ) -> None:
     """Configuración global de la CLI."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
     configure_logging("DEBUG" if verbose else "INFO")
 
 
@@ -52,6 +63,10 @@ app.command(
     "collect-sofascore",
     help="Recolecta stats completas de SofaScore (shots, SOT, faltas, xG, goleadores...) y las importa. Requiere IP residencial.",
 )(collect_sofascore.collect_sofascore)
+app.command(
+    "help",
+    help="Muestra la guía completa de comandos (o la de uno en particular).",
+)(help_command.help_command)
 
 
 if __name__ == "__main__":
