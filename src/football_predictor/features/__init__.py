@@ -1,0 +1,1 @@
+"""Capa de features estadísticas. Sin acceso a BD: reciben histórico."""

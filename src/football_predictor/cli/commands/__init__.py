@@ -1,0 +1,1 @@
+"""Comandos de la CLI. Cada módulo expone una función concreta registrada en main.py."""

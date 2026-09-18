@@ -1,0 +1,1 @@
+"""Capa de base de datos. Esta es la única capa que toca SQLAlchemy/PostgreSQL."""

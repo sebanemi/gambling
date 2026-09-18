@@ -1,0 +1,1 @@
+"""CLI ``predictor``. La CLI es delgada: delega en servicios, sin lógica de negocio."""

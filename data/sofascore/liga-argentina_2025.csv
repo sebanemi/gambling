@@ -1,0 +1,11 @@
+date,competition,season,home_team,away_team,home_goals,away_goals,home_yellow_cards,away_yellow_cards,home_red_cards,away_red_cards,home_corners,away_corners,home_shots,away_shots,home_shots_on_target,away_shots_on_target,home_fouls,away_fouls,home_throw_ins,away_throw_ins,home_penalties,away_penalties,home_xg,away_xg,home_possession,away_possession,home_scorers,away_scorers
+2025-05-02,Argentina Liga Profesional,2025,Banfield,Central Córdoba,3,1,3.0,,,,,3.0,,,1.0,3.0,14.0,9.0,6.0,19.0,,,,,27.0,73.0,,
+2025-05-02,Argentina Liga Profesional,2025,Independiente Rivadavia,Defensa y Justicia,3,2,1.0,4.0,,,3.0,1.0,,,3.0,,16.0,11.0,14.0,7.0,,,,,54.0,46.0,,
+2025-05-02,Argentina Liga Profesional,2025,Argentinos Juniors,Estudiantes de La Plata,4,0,2.0,3.0,,,5.0,2.0,,,3.0,2.0,8.0,12.0,7.0,7.0,,,,,57.0,43.0,,
+2025-05-02,Argentina Liga Profesional,2025,Racing Club,Newell's Old Boys,1,0,,5.0,,,2.0,5.0,,,2.0,2.0,11.0,15.0,7.0,8.0,,,,,38.0,62.0,,
+2025-05-02,Argentina Liga Profesional,2025,Club Atlético Unión de Santa Fe,Club Atlético Belgrano,1,1,,1.0,,,2.0,3.0,,,1.0,,6.0,15.0,8.0,9.0,,,,,37.0,63.0,,
+2025-05-03,Argentina Liga Profesional,2025,Deportivo Riestra,Godoy Cruz,3,0,1.0,2.0,,,,2.0,,,3.0,3.0,10.0,9.0,7.0,14.0,,,,,32.0,68.0,,
+2025-05-03,Argentina Liga Profesional,2025,Sarmiento,San Lorenzo,1,1,4.0,1.0,,,1.0,6.0,,,,2.0,12.0,14.0,5.0,11.0,,,,,30.0,70.0,,
+2025-05-03,Argentina Liga Profesional,2025,CA Talleres,Instituto De Córdoba,1,2,3.0,3.0,1.0,,2.0,2.0,,,1.0,4.0,18.0,15.0,7.0,9.0,,,,,68.0,32.0,,
+2025-05-03,Argentina Liga Profesional,2025,Rosario Central,CA Independiente,1,0,4.0,3.0,,,,2.0,,,4.0,1.0,20.0,14.0,5.0,9.0,,,,,41.0,59.0,,
+2025-05-04,Argentina Liga Profesional,2025,Atlético Tucumán,CA Lanús,1,0,2.0,,,,3.0,3.0,,,4.0,1.0,19.0,10.0,13.0,5.0,,,,,53.0,47.0,,

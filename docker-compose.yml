@@ -1,0 +1,42 @@
+name: football-predictor
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-football_predictor}
+      POSTGRES_USER: ${POSTGRES_USER:-football}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-football}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-football} -d ${POSTGRES_DB:-football_predictor}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  predictor:
+    build:
+      context: .
+    # Proceso one-shot: se ejecuta con `docker compose run --rm predictor <cmd>`.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    volumes:
+      # Código, migraciones, tests y datos en vivo para desarrollo.
+      - ./src:/app/src
+      - ./migrations:/app/migrations
+      - ./tests:/app/tests
+      - ./data:/app/data
+    command: predictor --help
+
+volumes:
+  postgres_data:

@@ -1,0 +1,1 @@
+"""Orquestación: entrenar modelos y predecir partidos. Sin lógica de negocio."""
