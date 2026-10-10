@@ -19,7 +19,7 @@ from scipy.optimize import minimize
 from football_predictor.models.base import Outcome, outcome_from_goals
 
 # Orden canónico de los miembros del ensemble.
-MEMBER_ORDER = ("poisson", "elo", "ml")
+MEMBER_ORDER = ("poisson", "elo", "ml", "gbm")
 
 _MIN_SAMPLES = 50  # menos que esto ⇒ la estimación no es fiable
 

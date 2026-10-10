@@ -32,18 +32,20 @@ from football_predictor.features.stream import FeatureStream
 from football_predictor.models.base import Predictor, outcome_from_goals
 from football_predictor.models.elo_model import EloModel
 from football_predictor.models.ensemble import EnsembleModel
+from football_predictor.models.gbm import GBMModel
 from football_predictor.models.ml import MLModel
 from football_predictor.models.poisson import PoissonModel
 from football_predictor.services.model_trainer import (
     MODEL_ELO,
     MODEL_ENSEMBLE,
+    MODEL_GBM,
     MODEL_ML,
     MODEL_POISSON,
     parse_ensemble_weights,
 )
 from football_predictor.utils.logging import get_logger
 
-_DefaultModelNames = ("poisson", "elo", "ml", "ensemble")
+_DefaultModelNames = ("poisson", "elo", "ml", "gbm", "ensemble")
 
 PredictionSurrogate = tuple[float, float, float]
 
@@ -105,8 +107,9 @@ class Backtester:
         vectors = stream.build_all(matches)
         outcomes = [outcome_from_goals(m.home_goals, m.away_goals) for m in matches]
 
-        need_ml = MODEL_ML in names or MODEL_ENSEMBLE in names
+        need_ml = MODEL_ML in names or MODEL_ENSEMBLE in names or MODEL_GBM in names
         need_poisson = MODEL_POISSON in names or MODEL_ENSEMBLE in names
+        need_gbm = MODEL_GBM in names or MODEL_ENSEMBLE in names
         matrix = MLModel.make_matrix(vectors) if need_ml else None
         outcome_matrix = np.array([int(o) for o in outcomes], dtype=int) if need_ml else None
 
@@ -142,7 +145,21 @@ class Backtester:
                 except (ValueError, RuntimeError) as e:
                     log.warning(f"ML fit failed at index {index}: {e}")
 
-            members = [trained[name] for name in (MODEL_POISSON, MODEL_ELO, MODEL_ML) if name in trained]
+            if need_gbm:
+                gbm = GBMModel(
+                    backend=s.models_gbm_backend,
+                    n_estimators=s.models_gbm_n_estimators,
+                    max_depth=s.models_gbm_max_depth,
+                    learning_rate=s.models_gbm_learning_rate,
+                    random_state=s.models_gbm_random_state,
+                )
+                try:
+                    gbm.fit_matrix(matrix[:index], outcome_matrix[:index])
+                    trained[MODEL_GBM] = gbm
+                except (ValueError, RuntimeError) as e:
+                    log.warning(f"GBM fit failed at index {index}: {e}")
+
+            members = [trained[name] for name in (MODEL_POISSON, MODEL_ELO, MODEL_ML, MODEL_GBM) if name in trained]
             if len(members) >= 2:
                 trained[MODEL_ENSEMBLE] = EnsembleModel(members, weights[: len(members)])
             elif len(members) == 1:
@@ -174,7 +191,7 @@ class Backtester:
         if MODEL_ENSEMBLE in names:
             member_samples = {
                 name: samples[name]
-                for name in (MODEL_POISSON, MODEL_ELO, MODEL_ML)
+                for name in (MODEL_POISSON, MODEL_ELO, MODEL_ML, MODEL_GBM)
                 if name in samples
             }
             optimized = optimize_weights(member_samples)

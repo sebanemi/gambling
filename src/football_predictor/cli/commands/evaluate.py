@@ -15,7 +15,7 @@ console = Console()
 def evaluate(
     model: Annotated[
         str,
-        typer.Option(help="Modelo a evaluar: poisson, elo, ml o ensemble."),
+        typer.Option(help="Modelo a evaluar: poisson, elo, ml, gbm o ensemble."),
     ] = "ensemble",
 ) -> None:
     """Evalúa predicciones guardadas sobre partidos ya jugados."""

@@ -14,20 +14,22 @@ from football_predictor.features.stream import FeatureStream
 from football_predictor.models.base import Predictor, outcome_from_goals
 from football_predictor.models.elo_model import EloModel
 from football_predictor.models.ensemble import EnsembleModel
+from football_predictor.models.gbm import GBMModel
 from football_predictor.models.ml import MLModel
 from football_predictor.models.poisson import PoissonModel
 
 MODEL_POISSON = "poisson"
 MODEL_ELO = "elo"
 MODEL_ML = "ml"
+MODEL_GBM = "gbm"
 MODEL_ENSEMBLE = "ensemble"
-ALL_MODELS = (MODEL_POISSON, MODEL_ELO, MODEL_ML, MODEL_ENSEMBLE)
+ALL_MODELS = (MODEL_POISSON, MODEL_ELO, MODEL_ML, MODEL_GBM, MODEL_ENSEMBLE)
 
 
 def parse_ensemble_weights(raw: str) -> list[float]:
     parts = [float(part.strip()) for part in raw.split(",") if part.strip()]
-    if len(parts) != 3:
-        raise ValueError("models_ensemble_weights debe tener 3 valores: poisson,elo,ml")
+    if len(parts) not in (3, 4):
+        raise ValueError("models_ensemble_weights debe tener 3 o 4 valores: poisson,elo,ml[,gbm]")
     if sum(parts) <= 0:
         raise ValueError("la suma de los pesos del ensemble debe ser positiva")
     return parts
@@ -82,12 +84,22 @@ class ModelTrainer:
         ml = MLModel(random_state=self._settings.models_ml_random_state)
         ml.fit(vectors, outcomes)
 
+        gbm = GBMModel(
+            backend=self._settings.models_gbm_backend,
+            n_estimators=self._settings.models_gbm_n_estimators,
+            max_depth=self._settings.models_gbm_max_depth,
+            learning_rate=self._settings.models_gbm_learning_rate,
+            random_state=self._settings.models_gbm_random_state,
+        )
+        gbm.fit(vectors, outcomes)
+
         weights = parse_ensemble_weights(self._settings.models_ensemble_weights)
-        ensemble = EnsembleModel([poisson, elo, ml], weights)
+        ensemble = EnsembleModel([poisson, elo, ml, gbm], weights)
 
         return {
             MODEL_POISSON: poisson,
             MODEL_ELO: elo,
             MODEL_ML: ml,
+            MODEL_GBM: gbm,
             MODEL_ENSEMBLE: ensemble,
         }

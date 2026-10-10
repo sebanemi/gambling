@@ -21,6 +21,7 @@ htmlcov/
 data/*.csv
 data/raw/
 *.log
+catboost_info/
 
 # IDE / SO
 .idea/

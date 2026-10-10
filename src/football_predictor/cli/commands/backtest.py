@@ -12,6 +12,7 @@ from football_predictor.services.model_trainer import (
     ALL_MODELS,
     MODEL_ELO,
     MODEL_ENSEMBLE,
+    MODEL_GBM,
     MODEL_ML,
     MODEL_POISSON,
     parse_ensemble_weights,
@@ -25,7 +26,7 @@ console = Console()
 def backtest(
     model: Annotated[
         str,
-        typer.Option(help="Modelo a evaluar: poisson, elo, ml, ensemble o all."),
+        typer.Option(help="Modelo a evaluar: poisson, elo, ml, gbm, ensemble o all."),
     ] = "all",
     min_matches: Annotated[
         int,
@@ -56,23 +57,24 @@ def _render_optimal_weights(report) -> None:
     from football_predictor.config.settings import get_settings
 
     default_weights = parse_ensemble_weights(get_settings().models_ensemble_weights)
+    ensemble_members = (MODEL_POISSON, MODEL_ELO, MODEL_ML, MODEL_GBM)
     default_weights = {
-        name: default_weights[i] for i, name in enumerate((MODEL_POISSON, MODEL_ELO, MODEL_ML))
+        name: default_weights[i] for i, name in enumerate(ensemble_members) if i < len(default_weights)
     }
     default_log_loss = mix_log_loss(
         {
             name: report.samples(name)
-            for name in (MODEL_POISSON, MODEL_ELO, MODEL_ML)
+            for name in ensemble_members
             if report.samples(name)
         },
-        {name: default_weights[name] for name in (MODEL_POISSON, MODEL_ELO, MODEL_ML) if name in default_weights},
+        {name: default_weights.get(name, 0.0) for name in ensemble_members if name in default_weights},
     )
 
     table = Table(title="Pesos óptimos del ensemble (por log-loss walk-forward)")
     table.add_column("Miembro", style="cyan")
     table.add_column("Peso default", justify="right")
     table.add_column("Peso óptimo", justify="right", style="green")
-    for name in (MODEL_POISSON, MODEL_ELO, MODEL_ML):
+    for name in ensemble_members:
         table.add_row(
             name,
             f"{default_weights.get(name, 0.0):.3f}",
@@ -83,7 +85,7 @@ def _render_optimal_weights(report) -> None:
     console.print(table)
     console.print(
         "[dim]Para usar estos pesos: predictor predict-match ... --model ensemble con "
-        f"MODELS_ENSEMBLE_WEIGHTS={','.join(f'{weights.get(n,0):.3f}' for n in (MODEL_POISSON, MODEL_ELO, MODEL_ML))}[/dim]"
+        f"MODELS_ENSEMBLE_WEIGHTS={','.join(f'{weights.get(n,0):.3f}' for n in ensemble_members)}[/dim]"
     )
 
 
@@ -100,6 +102,7 @@ def _render(evaluated: int, min_prior_matches: int, reports) -> None:
         MODEL_POISSON,
         MODEL_ELO,
         MODEL_ML,
+        MODEL_GBM,
         MODEL_ENSEMBLE,
     ):
         if name not in reports:

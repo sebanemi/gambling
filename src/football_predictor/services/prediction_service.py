@@ -28,7 +28,7 @@ class PredictionService:
         self, match_id: int, model_name: str = "ensemble"
     ) -> tuple[dict[str, PredictionResult], StatisticsPredictionResult]:
         if model_name != "all" and model_name not in ALL_MODELS:
-            raise ValueError(f"modelo desconocido: {model_name}. Válidos: 'all', poisson, elo, ml, ensemble")
+            raise ValueError(f"modelo desconocido: {model_name}. Válidos: 'all', poisson, elo, ml, gbm, ensemble")
 
         match = self._session.get(Match, match_id)
         if match is None:

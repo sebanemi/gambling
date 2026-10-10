@@ -79,9 +79,15 @@ class Settings(BaseSettings):
     models_elo_draw_sigma: float = 300.0
     # Modelo ML: semilla fija para determinismo.
     models_ml_random_state: int = 42
-    # Pesos del ensemble "poisson,elo,ml" (se normalizan). Estimados por
+    # Modelo GBM: backend y hiperparámetros
+    models_gbm_backend: str = "lightgbm"  # lightgbm, xgboost, catboost
+    models_gbm_n_estimators: int = 100
+    models_gbm_max_depth: int = 6
+    models_gbm_learning_rate: float = 0.1
+    models_gbm_random_state: int = 42
+    # Pesos del ensemble "poisson,elo,ml,gbm" (se normalizan). Estimados por
     # log-loss walk-forward sobre el histórico disponible.
-    models_ensemble_weights: str = "0.486,0.465,0.049"
+    models_ensemble_weights: str = "0.4,0.3,0.2,0.1"
 
     @property
     def database_url(self) -> str:

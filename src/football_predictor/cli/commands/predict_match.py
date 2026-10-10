@@ -23,7 +23,7 @@ def predict_match(
     date: Annotated[str | None, typer.Option(help="Fecha del partido (YYYY-MM-DD); por defecto el próximo programado.")] = None,
     model: Annotated[
         str,
-        typer.Option(help="Modelo: poisson, elo, ml, ensemble o all."),
+        typer.Option(help="Modelo: poisson, elo, ml, gbm, ensemble o all."),
     ] = "ensemble",
 ) -> None:
     """Predice un partido; pregunta los datos que falten y guarda el pronóstico."""

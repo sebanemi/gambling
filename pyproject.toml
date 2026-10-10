@@ -31,6 +31,12 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
 ]
+ml-extra = [
+    "xgboost>=2.0.0",
+    "lightgbm>=4.0.0",
+    "catboost>=1.2.0",
+    "optuna>=3.0.0",
+]
 
 [project.scripts]
 predictor = "football_predictor.cli.main:app"
