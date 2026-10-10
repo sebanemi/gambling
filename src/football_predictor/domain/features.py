@@ -9,7 +9,7 @@ from datetime import date
 
 from pydantic import BaseModel
 
-STATISTIC_METRICS: tuple[str, ...] = (
+STATISTIC_METRICS: frozenset[str] = frozenset({
     "yellow_cards",
     "red_cards",
     "corners",
@@ -20,7 +20,7 @@ STATISTIC_METRICS: tuple[str, ...] = (
     "penalties",
     "xg",
     "possession",
-)
+})
 
 
 class FormWindow(BaseModel):

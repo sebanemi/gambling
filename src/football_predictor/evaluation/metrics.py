@@ -31,11 +31,8 @@ class EvaluationReport:
 
 
 def outcome_proba(probabilities: tuple[float, float, float], outcome: Outcome) -> float:
-    return {
-        Outcome.HOME: probabilities[0],
-        Outcome.DRAW: probabilities[1],
-        Outcome.AWAY: probabilities[2],
-    }[outcome]
+    """Optimizado: acceso directo por índice en lugar de dict lookup."""
+    return probabilities[outcome.value]
 
 
 def ranking_loss(probabilities: tuple[float, float, float], home_goals: int, away_goals: int) -> float:
@@ -56,7 +53,9 @@ def brier(
 ) -> float:
     """Brier multiclase (media cuadrática sobre las 3 clases). 0 = perfecto."""
     actual = outcome_from_goals(home_goals, away_goals)
-    return sum((probabilities[k] - (1.0 if Outcome(k) == actual else 0.0)) ** 2 for k in range(3))
+    # Optimizado: precomputar one-hot vector
+    one_hot = [1.0 if Outcome(k) == actual else 0.0 for k in range(3)]
+    return sum((probabilities[k] - one_hot[k]) ** 2 for k in range(3))
 
 
 def top1_correct(probabilities: tuple[float, float, float], home_goals: int, away_goals: int) -> bool:
@@ -68,7 +67,10 @@ def evaluate_model(
     model_name: str,
     samples: list[tuple[tuple[float, float, float], int, int]],
 ) -> EvaluationReport:
-    """Agrega ranking_loss, log_loss, brier y top1 sobre las muestras."""
+    """Agrega ranking_loss, log_loss, brier y top1 sobre las muestras.
+    
+    Optimizado: single pass sobre las muestras para calcular todas las métricas.
+    """
     if not samples:
         return EvaluationReport(
             model_name=model_name,
@@ -80,17 +82,34 @@ def evaluate_model(
             brier=0.0,
         )
 
-    losses = [ranking_loss(p, hg, ag) for p, hg, ag in samples]
-    lls = [log_loss(p, hg, ag) for p, hg, ag in samples]
-    briers = [brier(p, hg, ag) for p, hg, ag in samples]
-    correct = sum(top1_correct(p, hg, ag) for p, hg, ag in samples)
+    n = len(samples)
+    total_ranking_loss = 0.0
+    total_log_loss = 0.0
+    total_brier = 0.0
+    correct = 0
+
+    # Single pass optimizado
+    for probabilities, home_goals, away_goals in samples:
+        outcome = outcome_from_goals(home_goals, away_goals)
+        proba = outcome_proba(probabilities, outcome)
+        
+        total_ranking_loss += 1.0 - proba
+        total_log_loss += -math.log(max(proba, _EPS))
+        
+        # Brier calculation
+        one_hot = [1.0 if Outcome(k) == outcome else 0.0 for k in range(3)]
+        total_brier += sum((probabilities[k] - one_hot[k]) ** 2 for k in range(3))
+        
+        # Top-1 accuracy
+        if Outcome(probabilities.index(max(probabilities))) == outcome:
+            correct += 1
 
     return EvaluationReport(
         model_name=model_name,
-        matches=len(samples),
-        ranking_loss=sum(losses) / len(losses),
-        top1_accuracy=correct / len(samples),
+        matches=n,
+        ranking_loss=total_ranking_loss / n,
+        top1_accuracy=correct / n,
         correct_top1=correct,
-        log_loss=sum(lls) / len(lls),
-        brier=sum(briers) / len(briers),
+        log_loss=total_log_loss / n,
+        brier=total_brier / n,
     )

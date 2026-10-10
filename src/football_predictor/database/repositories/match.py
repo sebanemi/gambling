@@ -10,17 +10,40 @@ class MatchRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def existing(self) -> dict[tuple[int, int, int, int, date], Match]:
-        """Mapa de claves únicas → Match ya presentes en BD.
+    def existing(self) -> dict[tuple[int, int, int, int, date], tuple[int, int | None, int | None, str]]:
+        """Mapa de claves únicas → datos básicos de Match ya presentes en BD.
 
         Permite distinguir un duplicado (mismo fixture ya importado) de un
         fixture ``scheduled`` cuyo resultado aún no se registró: en ese caso
         el importador actualiza la fila en vez de duplicar.
+        
+        Optimizado: carga solo las columnas necesarias para la clave única
+        y para determinar si requiere actualización. Retorna tuples
+        (match_id, home_goals, away_goals, status) en lugar de objetos Match
+        completos para reducir consumo de memoria en datasets grandes.
         """
-        rows = self._session.execute(select(Match)).scalars().all()
+        rows = self._session.execute(
+            select(
+                Match.id,
+                Match.competition_id,
+                Match.season_id,
+                Match.home_team_id,
+                Match.away_team_id,
+                Match.date,
+                Match.home_goals,
+                Match.away_goals,
+                Match.status,
+            )
+        ).all()
+        
         return {
-            (m.competition_id, m.season_id, m.home_team_id, m.away_team_id, m.date): m
-            for m in rows
+            (row.competition_id, row.season_id, row.home_team_id, row.away_team_id, row.date): (
+                row.id,
+                row.home_goals,
+                row.away_goals,
+                row.status,
+            )
+            for row in rows
         }
 
     def add(

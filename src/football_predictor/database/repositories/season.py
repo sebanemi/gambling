@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from football_predictor.database.models.season import Season
@@ -24,7 +24,9 @@ class SeasonRepository:
         return season.id
 
     def update_dates(self, *, season_id: int, start_date: date, end_date: date) -> None:
-        season = self._session.get(Season, season_id)
-        if season is not None:
-            season.start_date = start_date
-            season.end_date = end_date
+        """Optimizado: usa UPDATE directo en lugar de cargar el objeto completo."""
+        self._session.execute(
+            update(Season)
+            .where(Season.id == season_id)
+            .values(start_date=start_date, end_date=end_date)
+        )

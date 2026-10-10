@@ -41,10 +41,13 @@ from football_predictor.services.model_trainer import (
     MODEL_POISSON,
     parse_ensemble_weights,
 )
+from football_predictor.utils.logging import get_logger
 
 _DefaultModelNames = ("poisson", "elo", "ml", "ensemble")
 
 PredictionSurrogate = tuple[float, float, float]
+
+log = get_logger("evaluation.backtester")
 
 
 @dataclass(frozen=True)
@@ -125,7 +128,8 @@ class Backtester:
                     poisson.fit(matches[:index], warm_start=prev_poisson)
                     trained[MODEL_POISSON] = poisson
                     prev_poisson = poisson.last_point
-                except (ValueError, RuntimeError):
+                except (ValueError, RuntimeError) as e:
+                    log.warning(f"Poisson fit failed at index {index}: {e}")
                     prev_poisson = None
 
             trained[MODEL_ELO] = EloModel(draw_max=s.models_elo_draw_max, draw_sigma=s.models_elo_draw_sigma)
@@ -135,8 +139,8 @@ class Backtester:
                 try:
                     ml.fit_matrix(matrix[:index], outcome_matrix[:index])
                     trained[MODEL_ML] = ml
-                except (ValueError, RuntimeError):
-                    pass
+                except (ValueError, RuntimeError) as e:
+                    log.warning(f"ML fit failed at index {index}: {e}")
 
             members = [trained[name] for name in (MODEL_POISSON, MODEL_ELO, MODEL_ML) if name in trained]
             if len(members) >= 2:

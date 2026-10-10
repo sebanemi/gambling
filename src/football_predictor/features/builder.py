@@ -27,11 +27,14 @@ class FeatureBuilder:
         history_provider: HistoryProvider,
         feature_config: FeatureConfig | None = None,
         elo_calculator: EloCalculator | None = None,
+        max_cache_size: int = 100,
     ) -> None:
         self._provider = history_provider
         self._config = feature_config or FeatureConfig()
         self._elo = elo_calculator or EloCalculator()
         self._snapshots: dict[date, tuple[HistoricalMatch, ...]] = {}
+        self._max_cache_size = max(max_cache_size, 1)  # Mínimo 1 para evitar desactivación
+        self._cache_keys: list[date] = []  # Para mantener orden de inserción (LRU)
 
     def build_for_match(self, target: TargetMatch) -> FeatureVector:
         history = self._snapshot(target.date)
@@ -90,16 +93,26 @@ class FeatureBuilder:
         )
 
     def _snapshot(self, cutoff: date) -> tuple[HistoricalMatch, ...]:
-        """Snapshot del histórico estrictamente anterior a ``cutoff`` (cache)."""
+        """Snapshot del histórico estrictamente anterior a ``cutoff`` (cache con LRU)."""
         cached = self._snapshots.get(cutoff)
         if cached is not None:
+            # Mover al final (más reciente) para LRU
+            self._cache_keys.remove(cutoff)
+            self._cache_keys.append(cutoff)
             return cached
 
         matches = list(self._provider.get_matches_before(cutoff))
         matches = [m for m in matches if m.date < cutoff]
         matches.sort(key=lambda m: (m.date, m.match_id))
         snapshot = tuple(matches)
+        
+        # Aplicar límite de cache (LRU)
+        if len(self._cache_keys) >= self._max_cache_size:
+            oldest = self._cache_keys.pop(0)
+            del self._snapshots[oldest]
+        
         self._snapshots[cutoff] = snapshot
+        self._cache_keys.append(cutoff)
         return snapshot
 
     @staticmethod

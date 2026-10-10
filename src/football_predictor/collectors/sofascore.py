@@ -9,12 +9,18 @@ from __future__ import annotations
 
 import argparse
 import csv
+import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from ScraperFC import Sofascore
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+log = logging.getLogger(__name__)
 
 # Mapeo de nombres amigables a nombres oficiales de ScraperFC
 TOURNAMENT_MAP = {
@@ -50,22 +56,22 @@ def collect(
     if season is None:
         seasons = s.get_valid_seasons(tournament)
         season = list(seasons.keys())[0]
-        print(f"Usando ultima temporada disponible: {season}")
+        log.info(f"Usando ultima temporada disponible: {season}")
 
     # Verificar que la temporada existe
     valid_seasons = s.get_valid_seasons(tournament)
     if season not in valid_seasons:
         raise ValueError(f"Temporada {season} no válida para {tournament}. Disponibles: {list(valid_seasons.keys())}")
 
-    print(f"Recolectando {tournament} temporada {season}...")
+    log.info(f"Recolectando {tournament} temporada {season}...")
 
     # Obtener todos los partidos
     matches = s.get_match_dicts(season, tournament)
-    print(f"  Encontrados {len(matches)} partidos")
+    log.info(f"  Encontrados {len(matches)} partidos")
 
     # Filtrar solo finalizados
     finished = [m for m in matches if m.get("status", {}).get("type") == "finished"]
-    print(f"  Finalizados: {len(finished)}")
+    log.info(f"  Finalizados: {len(finished)}")
 
     if max_matches:
         finished = finished[:max_matches]
@@ -104,7 +110,7 @@ def collect(
                 scorers = _parse_scorers(match, s)
 
                 start_ts = match.get("startTimestamp")
-                match_date = datetime.fromtimestamp(start_ts, tz=timezone.utc).date().isoformat() if start_ts else ""
+                match_date = datetime.fromtimestamp(start_ts, tz=UTC).date().isoformat() if start_ts else ""
 
                 home_team = match.get("homeTeam", {}).get("name", "")
                 away_team = match.get("awayTeam", {}).get("name", "")
@@ -125,13 +131,13 @@ def collect(
                 writer.writerow(row)
 
                 if i % 10 == 0:
-                    print(f"  Procesados {i}/{len(finished)}...")
+                    log.info(f"  Procesados {i}/{len(finished)}...")
 
             except Exception as e:
-                print(f"  Error en partido {match.get('id')}: {e}")
+                log.error(f"  Error en partido {match.get('id')}: {e}")
                 continue
 
-    print(f"[OK] Guardado: {csv_path}")
+    log.info(f"[OK] Guardado: {csv_path}")
     return csv_path
 
 
@@ -197,7 +203,6 @@ def _parse_scorers(match: dict, scraper: Sofascore) -> dict:
         # Scorers desde incidents si disponible
         # Los scorers suelen estar en match events, pero ScraperFC no los expone directo
         # Fallback: usar homeTeam/awayTeam names del detail
-        pass
 
         return {
             "home_scorers": "",
@@ -218,10 +223,10 @@ def main():
 
     try:
         csv_path = collect(args.tournament, args.season, Path(args.output_dir), args.max_matches)
-        print(f"\nListo. Para importar en el predictor:")
-        print(f"  predictor import-data --path {csv_path}")
+        log.info("\nListo. Para importar en el predictor:")
+        log.info(f"  predictor import-data --path {csv_path}")
     except Exception as e:
-        print(f"ERROR: {e}", file=sys.stderr)
+        log.error(f"ERROR: {e}")
         sys.exit(1)
 
 

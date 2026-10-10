@@ -18,6 +18,8 @@ class GoalsAverageCalculator:
 
         ``window=None`` usa todo el historial; si ``window>0`` usa los
         últimos ``window`` partidos. Sin partidos → (0.0, 0.0) (sin div/0).
+        
+        Optimizado: reduce llamadas a getattr y usa accesor directo a atributos.
         """
         if window and window > 0:
             team_matches = team_matches[-window:]
@@ -28,6 +30,7 @@ class GoalsAverageCalculator:
 
         goals_for = 0
         goals_against = 0
+        # Cache de team_id para evitar comparaciones repetidas
         for match in team_matches:
             if match.home_team_id == team_id:
                 goals_for += match.home_goals

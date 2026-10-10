@@ -56,8 +56,8 @@ class ModelTrainer:
             home_advantage=s.elo_home_advantage,
         )
 
-    def feature_builder(self) -> FeatureBuilder:
-        return FeatureBuilder(self._provider, self._feature_config, self._elo_calculator)
+    def feature_builder(self, max_cache_size: int = 100) -> FeatureBuilder:
+        return FeatureBuilder(self._provider, self._feature_config, self._elo_calculator, max_cache_size)
 
     def train_all(self) -> dict[str, Predictor]:
         matches = sorted(self._provider.get_all_matches(), key=lambda m: (m.date, m.match_id))

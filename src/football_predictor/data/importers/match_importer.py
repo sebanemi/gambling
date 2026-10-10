@@ -9,8 +9,10 @@ fuente). El provider CSV conserva su resumen filas/errores vía ``_records``.
 from dataclasses import dataclass
 from datetime import date
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from football_predictor.database.models.match import Match
 from football_predictor.database.repositories.competition import CompetitionRepository
 from football_predictor.database.repositories.match import MatchRepository
 from football_predictor.database.repositories.match_statistics import MatchStatisticsRepository
@@ -116,16 +118,22 @@ class MatchImporter:
                 # Fixture ya presente: si era scheduled y ahora hay marcador,
                 # se actualiza en lugar de duplicar. Si ya tenía resultado (o
                 # sigue sin marcador), se actualizan stats si vienen.
-                was_scheduled = current.home_goals is None or current.away_goals is None
+                # current es ahora: (match_id, home_goals, away_goals, status)
+                match_id, current_home_goals, current_away_goals, current_status = current
+                was_scheduled = current_home_goals is None or current_away_goals is None
                 if has_score and was_scheduled:
-                    current.home_goals = record.home_goals
-                    current.away_goals = record.away_goals
-                    current.status = record.status or "finished"
+                    # Actualizar el match existente
+                    match = self._session.execute(
+                        select(Match).where(Match.id == match_id)
+                    ).scalar_one()
+                    match.home_goals = record.home_goals
+                    match.away_goals = record.away_goals
+                    match.status = record.status or "finished"
                     updated += 1
                     season_date_ranges.setdefault(season_id, []).append(record.date)
                 # Siempre actualizar estadísticas si vienen en el registro (incluso si ya tenía resultado)
                 if any(getattr(record, f, None) is not None for f in _STAT_FIELDS):
-                    self._upsert_stats(current.id, record)
+                    self._upsert_stats(match_id, record)
                     stats_updated += 1
                 if not (has_score and was_scheduled):
                     duplicates += 1

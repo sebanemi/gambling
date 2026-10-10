@@ -56,6 +56,8 @@ class TeamRepository:
         if not target:
             return None
 
+        # Hacer búsqueda fuzzy con count (necesario para elegir el equipo con más partidos
+        # cuando hay variantes como "Brentford" vs "Brentford FC")
         rows = self._session.execute(
             select(
                 Team.id,
@@ -83,8 +85,8 @@ class TeamRepository:
         return best[2] if best else None
 
     def get_name(self, team_id: int) -> str | None:
-        team = self._session.get(Team, team_id)
-        return team.name if team is not None else None
+        """Optimizado: carga solo el nombre en lugar del objeto completo."""
+        return self._session.scalar(select(Team.name).where(Team.id == team_id))
 
     def search(self, text: str, limit: int = 6) -> list[str]:
         """Nombres almacenados que contienen `text` (para sugerencias)."""

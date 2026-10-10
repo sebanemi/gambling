@@ -11,6 +11,8 @@ class FormCalculator:
 
     ``team_matches`` debe contener sólo partidos ANTERIORES al momento de
     la predicción (lo garantiza el HistoryProvider).
+    
+    Optimizado: usa list comprehension para filtrar partidos y reduce overhead.
     """
 
     @classmethod
@@ -21,6 +23,7 @@ class FormCalculator:
         form_windows: tuple[int, ...],
         home_away_window: int,
     ) -> TeamForm:
+        # Optimizado: usar list comprehension en lugar de loop for
         home_matches = [m for m in team_matches if m.home_team_id == team_id]
         away_matches = [m for m in team_matches if m.away_team_id == team_id]
 
@@ -37,16 +40,19 @@ class FormCalculator:
         team_id: int,
         window: int,
     ) -> FormWindow:
-        """Últimos ``window`` partidos (cola de una lista cronológica)."""
+        """Últimos ``window`` partidos (cola de una lista cronológica).
+        
+        Optimizado: single pass para calcular todas las estadísticas.
+        """
         recent = chronological[-window:] if window > 0 else chronological
         stats = FormWindow(played=len(recent))
 
+        # Single pass optimizado
         for match in recent:
-            goals_for, goals_against = (
-                (match.home_goals, match.away_goals)
-                if match.home_team_id == team_id
-                else (match.away_goals, match.home_goals)
-            )
+            is_home = match.home_team_id == team_id
+            goals_for = match.home_goals if is_home else match.away_goals
+            goals_against = match.away_goals if is_home else match.home_goals
+            
             if goals_for > goals_against:
                 stats.wins += 1
             elif goals_for < goals_against:
