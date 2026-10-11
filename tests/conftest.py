@@ -13,7 +13,16 @@ from sqlalchemy.orm import sessionmaker
 
 from football_predictor.config.settings import get_settings
 from football_predictor.database.migrations import configure_alembic
-from football_predictor.database.models import Competition, Match, Prediction, Season, Team
+from football_predictor.database.models import (  # noqa: F401
+    BettingHistory,
+    BettingSimulation,
+    Competition,
+    Match,
+    MatchOdds,
+    Prediction,
+    Season,
+    Team,
+)
 
 TEST_DATABASE = "football_predictor_test"
 

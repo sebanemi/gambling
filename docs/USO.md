@@ -7,16 +7,32 @@ Todos los comandos de `predictor` y sus opciones, con ejemplos. El flag global
 predictor COMMAND [ARGS]...
 ```
 
+Ayuda rápida (las 3 muestran los comandos disponibles):
+
+```bash
+predictor --help              # lista de comandos (Typer, siempre disponible)
+predictor commands            # lista corta en español (igual que --help)
+predictor help                # guía completa en español
+predictor help predict-match  # guía de un comando
+predictor predict-match --help  # opciones de un comando
+```
+
 ## Vista general
 
 | Comando | Qué hace |
 |---------|----------|
 | `init-db` | Crea/actualiza el esquema (alembic upgrade head) |
 | `import-data` | Importa partidos o catálogo (CSV o API) |
+| `import-odds` | Importa cuotas históricas desde CSV |
 | `status` | Estado de la BD: revisión aplicada y head |
 | `predict-match` | Predice un partido y guarda el resultado con snapshot |
 | `evaluate` | Evalúa predicciones guardadas sobre partidos jugados |
 | `backtest` | Backtest walk-forward (solo pasado, sin leakage) |
+| `simulate-betting` | Simula apuestas con cuotas reales (walk-forward) |
+| `value-bets` | Lista apuestas de valor en fixtures programados |
+| `collect-sofascore` | Recolecta stats de SofaScore (requiere IP residencial) |
+| `help` | Guía completa o de un comando (`help predict-match`) |
+| `commands` | Lista corta de comandos (alias legible de `--help`) |
 
 ## `init-db`
 
@@ -78,7 +94,8 @@ predictor predict-match [--home EQUIPO] [--away EQUIPO] [--date YYYY-MM-DD] [--m
 | `--home` | pregunta | Equipo local. Acepta **parciales y variantes**: `Brentford`, `brentford fc`, `Brighton`… |
 | `--away` | pregunta | Equipo visitante (igual de tolerante) |
 | `--date` | próx. programado | Fecha del partido (`YYYY-MM-DD`). Si se omite, usa el siguiente fixture programado entre ambos |
-| `--model` | `ensemble` | `poisson`, `elo`, `ml`, `ensemble` o `all` |
+| `--model` | `ensemble` | `poisson`, `elo`, `ml`, `gbm`, `ensemble` o `all` |
+| `--all-leagues` | `false` | Entrena con todas las ligas (default: solo la liga del partido) |
 
 Si omitís algún dato, la CLI te lo pregunta. La búsqueda de equipos es difusa:
 tolera mayúsculas, acentos, nombres parciales y sufijos decorativos
@@ -100,7 +117,10 @@ predictor predict-match --home Arsenal --away Chelsea --date 2024-09-14 --model 
 ```
 
 Guarda en `predictions` (upsert por `match_id + model`): probabilidades 1X2, goles
-esperados y el `features_snapshot`.
+esperados y el `features_snapshot`. Además muestra el **nivel de confianza**:
+`COIN-FLIP` (margen <0.05 o top <0.40: no hay edge, mejor no apostar),
+`LEAN` (señal débil) o `CONFIDENT`. Un acierto con probs 0.36/0.33/0.31 es
+suerte, no skill: mirá el margen y la entropía antes de apostar.
 
 ## `evaluate`
 
@@ -125,19 +145,81 @@ predictor backtest [--model M] [--min-matches N]
 
 | Opción | Default | Descripción |
 |--------|---------|-------------|
-| `--model` | `all` | `poisson`, `elo`, `ml`, `ensemble` o `all` |
+| `--model` | `all` | `poisson`, `elo`, `ml`, `gbm`, `ensemble` o `all` |
 | `--min-matches` | `5` | Mínimo de partidos previos por paso antes de predecir |
+| `--competition` | todas | Solo esta liga (p.ej. `--competition 'Liga Profesional'`) |
 
 Walk-forward: cada paso entrena solo con el pasado del partido y evalúa
 `ranking_loss`/`log_loss`/`brier`/`top1`. No persiste nada. Además, con las
 muestras walk-forward estima **los pesos óptimos del ensemble** (mezcla convexa
 que minimiza el log-loss; problema convexo, óptimo global) y los sugiere. Si
-querés usarlos: `MODELS_ENSEMBLE_WEIGHTS=X,Y,Z predictor predict-match ...`.
+querés usarlos: `MODELS_ENSEMBLE_WEIGHTS=W,X,Y,Z predictor predict-match ...`
+(4 pesos: poisson,elo,ml,gbm).
 
 ```bash
 predictor backtest
 predictor backtest --model ensemble --min-matches 10
 ```
+
+## `import-odds`
+
+```bash
+predictor import-odds --path data/sample_odds.csv
+```
+
+Importa cuotas decimales (`date,home_team,away_team,bookmaker,home_odds,draw_odds,away_odds`;
+upsert por partido + bookmaker). Las filas sin partido en BD se cuentan como
+`unknown_matches`.
+
+## `simulate-betting`
+
+```bash
+predictor simulate-betting [--model M] [--strategy S] [--initial-bankroll X]
+                           [--value-threshold T] [--bookmaker B] [--no-save]
+```
+
+Walk-forward con **cuotas reales**: solo apuesta si hay cuota importada y
+`EV > umbral`. Persiste el resumen en `betting_simulations` y cada apuesta en
+`betting_history` (salvo `--no-save`).
+
+```bash
+predictor import-odds --path data/sample_odds.csv
+predictor simulate-betting --model ensemble --strategy kelly
+```
+
+## `value-bets`
+
+```bash
+predictor value-bets [--model M] [--threshold T] [--bookmaker B] [--limit N]
+```
+
+Entrena con todo el histórico y lista los outcomes de fixtures `scheduled`
+con `EV > umbral`, ordenados por EV. Detalle en [BETTING.md](BETTING.md).
+
+## `collect-sofascore`
+
+```bash
+predictor collect-sofascore --help
+```
+
+Recolecta stats completas de SofaScore y las importa. Requiere IP residencial.
+
+## `help`
+
+```bash
+predictor help [COMANDO]
+```
+
+Muestra esta guía completa o la sección de un comando (`predictor help backtest`).
+
+## `commands`
+
+```bash
+predictor commands
+```
+
+Lista corta de todos los comandos. Equivale a `predictor --help` pero en español
+y sin necesitar `docs/USO.md`.
 
 ## Flujo típico de punta a punta
 

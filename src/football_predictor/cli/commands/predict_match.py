@@ -25,6 +25,13 @@ def predict_match(
         str,
         typer.Option(help="Modelo: poisson, elo, ml, gbm, ensemble o all."),
     ] = "ensemble",
+    all_leagues: Annotated[
+        bool,
+        typer.Option(
+            "--all-leagues",
+            help="Entrena con TODAS las ligas (default: solo la liga del partido).",
+        ),
+    ] = False,
 ) -> None:
     """Predice un partido; pregunta los datos que falten y guarda el pronóstico."""
     if home is None:
@@ -78,7 +85,7 @@ def predict_match(
             raise typer.Exit(code=1)
 
         results, stats = PredictionService(session).predict_match(
-            match_id=match.id, model_name=model
+            match_id=match.id, model_name=model, same_league=not all_leagues
         )
 
     _render(match.id, match_date, home_name, away_name, results)
@@ -123,6 +130,8 @@ def _render(match_id: int, match_date: _Date, home: str, away: str, results: dic
     table.add_column("P(draw)", justify="right")
     table.add_column("P(away)", justify="right")
     table.add_column("Goals exp.", justify="right")
+    table.add_column("Top", justify="left")
+    table.add_column("Confianza", justify="left")
 
     for name, result in results.items():
         goals = (
@@ -130,15 +139,48 @@ def _render(match_id: int, match_date: _Date, home: str, away: str, results: dic
             if result.home_goals is not None
             else "—"
         )
+        probs = (result.home_win, result.draw, result.away_win)
+        top_label, conf_label = _confidence(probs)
         table.add_row(
             name,
             f"{result.home_win:.3f}",
             f"{result.draw:.3f}",
             f"{result.away_win:.3f}",
             goals,
+            top_label,
+            conf_label,
         )
 
     console.print(table)
+    console.print(
+        "[dim]Confianza = margen entre las 2 probs más altas + prob. máxima. "
+        "COIN-FLIP (margen <0.05 o top <0.40): el modelo no ve edge — mejor no apostar.[/dim]"
+    )
+
+
+def _confidence(probs: tuple[float, float, float]) -> tuple[str, str]:
+    """Etiqueta de resultado favorito + nivel de confianza honesto.
+
+    El 1X2 tiene un techo real (~50-55% top-1 incluso para bookmakers):
+    una prob máxima de 0.35-0.40 con margen mínimo ES un coin-flip y hay
+    que decirlo en vez de vender certeza.
+    """
+    import math
+
+    names = ("1 (local)", "X (empate)", "2 (visita)")
+    ordered = sorted(zip(probs, names), reverse=True)
+    top_p, top_name = ordered[0][0], ordered[0][1]
+    margin = ordered[0][0] - ordered[1][0]
+    entropy = -sum(p * math.log(max(p, 1e-12)) for p in probs) / math.log(3)  # 0..1
+
+    if top_p < 0.40 or margin < 0.05:
+        level = "[red]COIN-FLIP[/red]"
+    elif top_p < 0.50 or margin < 0.10:
+        level = "[yellow]LEAN[/yellow]"
+    else:
+        level = "[green]CONFIDENT[/green]"
+    detail = f"{top_name} {top_p:.2f} (margen {margin:.2f}, entropía {entropy:.2f})"
+    return detail, level
 
 
 def _render_stats(stats: StatisticsPredictionResult) -> None:

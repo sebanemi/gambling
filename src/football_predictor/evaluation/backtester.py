@@ -43,6 +43,7 @@ from football_predictor.services.model_trainer import (
     MODEL_POISSON,
     parse_ensemble_weights,
 )
+from football_predictor.services.scoped_history import CompetitionScopedHistory
 from football_predictor.utils.logging import get_logger
 
 _DefaultModelNames = ("poisson", "elo", "ml", "gbm", "ensemble")
@@ -75,7 +76,12 @@ class Backtester:
         history_provider: HistoryProvider,
         settings: Settings | None = None,
         min_prior_matches: int = 5,
+        competition_id: int | None = None,
     ) -> None:
+        """``competition_id`` limita el walk-forward a una liga (same-league).
+        None = todo el histórico."""
+        if competition_id is not None:
+            history_provider = CompetitionScopedHistory(history_provider, competition_id)
         self._provider = history_provider
         self._settings = settings or get_settings()
         self._min_prior_matches = max(1, min_prior_matches)
@@ -138,7 +144,11 @@ class Backtester:
             trained[MODEL_ELO] = EloModel(draw_max=s.models_elo_draw_max, draw_sigma=s.models_elo_draw_sigma)
 
             if need_ml:
-                ml = MLModel(random_state=s.models_ml_random_state)
+                ml = MLModel(
+                    random_state=s.models_ml_random_state,
+                    class_weight=s.models_ml_class_weight,
+                    c=s.models_ml_c,
+                )
                 try:
                     ml.fit_matrix(matrix[:index], outcome_matrix[:index])
                     trained[MODEL_ML] = ml
@@ -152,6 +162,7 @@ class Backtester:
                     max_depth=s.models_gbm_max_depth,
                     learning_rate=s.models_gbm_learning_rate,
                     random_state=s.models_gbm_random_state,
+                    class_weight=s.models_gbm_class_weight,
                 )
                 try:
                     gbm.fit_matrix(matrix[:index], outcome_matrix[:index])
@@ -170,7 +181,7 @@ class Backtester:
                 model = trained.get(name)
                 if model is None:
                     continue
-                result = model.predict(features)
+                result = model.predict(features, include_snapshot=False)
                 samples[name].append(
                     (
                         target_match.match_id,

@@ -1,9 +1,26 @@
 """Ensemble: media ponderada de las probabilidades de varios modelos (§16)."""
 
-from collections.abc import Sequence
+import inspect
+from collections.abc import Callable, Sequence
 
 from football_predictor.domain.features import FeatureVector
 from football_predictor.models.base import PredictionResult, Predictor
+
+
+def _member_predict_fn(model: Predictor) -> Callable[[FeatureVector], PredictionResult]:
+    """Bind de ``model.predict`` sin snapshot si el miembro lo soporta.
+
+    Los miembros solo aportan probs/goles al ensemble (sus snapshots se
+    descartaban igual); llamar sin snapshot evita un ``flatten()`` por
+    miembro. Acepta miembros con el protocolo viejo ``predict(features)``.
+    """
+    try:
+        accepts_flag = "include_snapshot" in inspect.signature(model.predict).parameters
+    except (TypeError, ValueError):
+        accepts_flag = False
+    if accepts_flag:
+        return lambda features: model.predict(features, include_snapshot=False)
+    return lambda features: model.predict(features)
 
 
 class EnsembleModel:
@@ -22,16 +39,17 @@ class EnsembleModel:
 
         self._models = list(models)
         self._weights = [float(w) / total for w in weights]
+        self._predict_fns = [_member_predict_fn(model) for model in self._models]
 
-    def predict(self, features: FeatureVector) -> PredictionResult:
+    def predict(self, features: FeatureVector, *, include_snapshot: bool = True) -> PredictionResult:
         home_win = 0.0
         draw = 0.0
         away_win = 0.0
         goals_home: list[float] = []
         goals_away: list[float] = []
 
-        for model, weight in zip(self._models, self._weights):
-            result = model.predict(features)
+        for predict_fn, weight in zip(self._predict_fns, self._weights):
+            result = predict_fn(features)
             home_win += weight * result.home_win
             draw += weight * result.draw
             away_win += weight * result.away_win
@@ -48,5 +66,5 @@ class EnsembleModel:
             away_win=away_win,
             home_goals=mean_goals[0],
             away_goals=mean_goals[1],
-            features_snapshot=features.flatten(),
+            features_snapshot=features.flatten() if include_snapshot else None,
         )

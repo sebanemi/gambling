@@ -7,9 +7,12 @@ from football_predictor.cli.commands import (
     collect_sofascore,
     evaluate,
     import_data,
+    import_odds,
     init_db,
     predict_match,
+    simulate_betting,
     status,
+    value_bets,
 )
 from football_predictor.cli.commands import (
     help as help_command,
@@ -60,6 +63,18 @@ app.command(
     help="Backtest walk-forward: predice cada partido solo con su pasado.",
 )(backtest.backtest)
 app.command(
+    "simulate-betting",
+    help="Simula estrategia de apuestas sobre el histórico con cuotas reales.",
+)(simulate_betting.simulate_betting)
+app.command(
+    "import-odds",
+    help="Importa cuotas históricas desde CSV (upsert por partido + bookmaker).",
+)(import_odds.import_odds)
+app.command(
+    "value-bets",
+    help="Lista apuestas de valor en fixtures programados.",
+)(value_bets.value_bets)
+app.command(
     "collect-sofascore",
     help="Recolecta stats completas de SofaScore (shots, SOT, faltas, xG, goleadores...) y las importa. Requiere IP residencial.",
 )(collect_sofascore.collect_sofascore)
@@ -67,6 +82,10 @@ app.command(
     "help",
     help="Muestra la guía completa de comandos (o la de uno en particular).",
 )(help_command.help_command)
+app.command(
+    "commands",
+    help="Lista corta de todos los comandos (igual que --help).",
+)(help_command.list_commands)
 
 
 if __name__ == "__main__":

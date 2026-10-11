@@ -13,17 +13,30 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from football_predictor.domain.features import FeatureVector
+from football_predictor.domain.features import FeatureVector, feature_columns, matrix_from_vectors
 from football_predictor.models.base import Outcome, PredictionResult
 
 
 class MLModel:
-    def __init__(self, random_state: int = 42, max_iter: int = 2000) -> None:
+    def __init__(
+        self,
+        random_state: int = 42,
+        max_iter: int = 2000,
+        class_weight: str | None = "balanced",
+        c: float = 1.0,
+    ) -> None:
         self._random_state = int(random_state)
         self._max_iter = int(max_iter)
+        # "balanced" compensa el desbalance 1X2 (empates ~25%): evita que el
+        # modelo infra-prediga el empate y mejora log-loss/brier. "none"/None
+        # desactiva el ponderado (comportamiento clásico).
+        self._class_weight = None if class_weight in (None, "none") else class_weight
+        # C inverso de regularización: valores chicos (0.05-0.2) evitan el
+        # sobreajuste con 128 features e historiales cortos.
+        self._c = float(c)
         self._pipeline: object | None = None
         self._classes: list[int] | None = None
-        self._columns = list(_template().flatten().keys())
+        self._columns = list(feature_columns())
         self._active_columns: list[int] | None = None
 
     def fit(self, training_features: Sequence[FeatureVector], outcomes: Sequence[Outcome]) -> None:
@@ -41,8 +54,7 @@ class MLModel:
         """Matriz (N x columnas) en el orden fijo de columnas del modelo."""
         if not training_features:
             raise ValueError("make_matrix requiere al menos un ejemplo")
-        columns = list(_template().flatten().keys())
-        return np.array([[fv.flatten()[column] for column in columns] for fv in training_features], dtype=float)
+        return matrix_from_vectors(training_features)
 
     def fit_matrix(self, x: np.ndarray, y: np.ndarray) -> None:
         """Entrena desde una matriz ya construida (sobre las mismas columnas)."""
@@ -63,19 +75,24 @@ class MLModel:
 
         pipeline = make_pipeline(
             StandardScaler(),
-            LogisticRegression(max_iter=self._max_iter, random_state=self._random_state),
+            LogisticRegression(
+                max_iter=self._max_iter,
+                random_state=self._random_state,
+                class_weight=self._class_weight,
+                C=self._c,
+            ),
         )
         pipeline.fit(x[:, self._active_columns], y)
         self._pipeline = pipeline
         self._classes = [int(c) for c in pipeline.classes_]
 
     def _matrix(self, features: Sequence[FeatureVector], apply_mask: bool = True) -> np.ndarray:
-        matrix = np.array([[fv.flatten()[column] for column in self._columns] for fv in features], dtype=float)
+        matrix = matrix_from_vectors(features)
         if apply_mask and self._active_columns is not None:
             matrix = matrix[:, self._active_columns]
         return matrix
 
-    def predict(self, features: FeatureVector) -> PredictionResult:
+    def predict(self, features: FeatureVector, *, include_snapshot: bool = True) -> PredictionResult:
         if self._pipeline is None:
             raise ValueError("MLModel.predict requiere fit() previo")
 
@@ -90,41 +107,5 @@ class MLModel:
             home_win=proba.get(Outcome.HOME, 0.0),
             draw=proba.get(Outcome.DRAW, 0.0),
             away_win=proba.get(Outcome.AWAY, 0.0),
-            features_snapshot=features.flatten(),
+            features_snapshot=features.flatten() if include_snapshot else None,
         )
-
-
-def _template() -> FeatureVector:
-    """FeatureVector todo-cero usado sólo para fijar el orden de columnas."""
-    from datetime import date
-
-    from football_predictor.domain.features import TeamForm
-
-    return FeatureVector(
-        match_id=0,
-        home_team_id=0,
-        away_team_id=0,
-        date=date(2000, 1, 1),
-        home_elo=0.0,
-        away_elo=0.0,
-        elo_difference=0.0,
-        home_form=TeamForm(),
-        away_form=TeamForm(),
-        home_goals_for_avg=0.0,
-        home_goals_against_avg=0.0,
-        away_goals_for_avg=0.0,
-        away_goals_against_avg=0.0,
-        home_yellow_cards_for_avg=0.0,
-        home_yellow_cards_against_avg=0.0,
-        away_yellow_cards_for_avg=0.0,
-        away_yellow_cards_against_avg=0.0,
-        home_red_cards_for_avg=0.0,
-        home_red_cards_against_avg=0.0,
-        away_red_cards_for_avg=0.0,
-        away_red_cards_against_avg=0.0,
-        home_corners_for_avg=0.0,
-        home_corners_against_avg=0.0,
-        away_corners_for_avg=0.0,
-        away_corners_against_avg=0.0,
-        home_advantage=0.0,
-    )

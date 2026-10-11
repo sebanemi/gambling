@@ -109,9 +109,20 @@ predictor backtest
 | `init-db` | — | Aplica migraciones (alembic upgrade head) |
 | `status` | — | Revisión aplicada y head de la BD |
 | `import-data` | `--path`, `--provider`, `--competition`, `--season`, `--list` | Importa CSV o API (partidos o catálogo) |
-| `predict-match` | `--home`, `--away`, `--date`, `--model` | Predice 1X2, guarda con snapshot |
+| `predict-match` | `--home`, `--away`, `--date`, `--model`, `--all-leagues` | Predice 1X2 + confianza, guarda con snapshot |
 | `evaluate` | `--model` | Evalúa predicciones guardadas |
-| `backtest` | `--model`, `--min-matches` | Backtest walk-forward sin leakage |
+| `backtest` | `--model`, `--min-matches`, `--competition` | Backtest walk-forward sin leakage |
+| `import-odds` | `--path` | Importa cuotas CSV (upsert por partido + bookmaker) |
+| `simulate-betting` | `--model`, `--strategy`, `--initial-bankroll`, `--value-threshold`, `--bookmaker`, `--no-save` | Simula apuestas con cuotas reales (persiste) |
+| `value-bets` | `--model`, `--threshold`, `--bookmaker`, `--limit` | Apuestas de valor en fixtures programados |
+| `collect-sofascore` | (ver `--help`) | Recolecta stats de SofaScore (requiere IP residencial) |
+| `help` | `[comando]` | Guía completa en español |
+| `commands` | — | Lista corta de comandos (alias legible de `--help`) |
+
+Ayuda: `predictor --help` (lista), `predictor commands` (lista en español),
+`predictor help <comando>` (guía) o `predictor <comando> --help` (opciones).
+
+Guía de apuestas en [BETTING.md](docs/BETTING.md).
 
 Opciones default relevantes: `predict-match --model ensemble`;
 `backtest --model all --min-matches 5`; `import-data --provider csv`.

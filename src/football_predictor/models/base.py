@@ -80,5 +80,7 @@ class StatisticsPredictionResult:
 class Predictor(Protocol):
     """Modelo listo para predecir un partido (entrenado cuando aplique)."""
 
-    def predict(self, features: FeatureVector) -> PredictionResult:
+    def predict(self, features: FeatureVector, *, include_snapshot: bool = True) -> PredictionResult:
+        """Predice 1X2. ``include_snapshot=False`` omite el snapshot auditable
+        (vía rápida para backtests walk-forward donde solo importan las probs)."""
         ...

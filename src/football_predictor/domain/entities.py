@@ -72,6 +72,9 @@ class HistoricalMatch:
     away_team_id: int
     home_goals: int
     away_goals: int
+    # Competición (BD). None = desconocida (datasets viejos/tests): solo se
+    # usa para el filtro same-league; el resto del sistema la ignora.
+    competition_id: int | None = None
     home_yellow_cards: int | None = None
     away_yellow_cards: int | None = None
     home_red_cards: int | None = None

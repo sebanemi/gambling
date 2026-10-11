@@ -14,6 +14,7 @@ from football_predictor.domain.features import STATISTIC_METRICS
 from football_predictor.models.base import PredictionResult, StatisticsPredictionResult
 from football_predictor.models.statistics_model import StatisticsModel
 from football_predictor.services.model_trainer import ALL_MODELS, ModelTrainer
+from football_predictor.services.scoped_history import CompetitionScopedHistory
 
 
 class PredictionService:
@@ -25,8 +26,14 @@ class PredictionService:
         self._stats_model = StatisticsModel()
 
     def predict_match(
-        self, match_id: int, model_name: str = "ensemble"
+        self, match_id: int, model_name: str = "ensemble", same_league: bool = True
     ) -> tuple[dict[str, PredictionResult], StatisticsPredictionResult]:
+        """Predice con histórico de la misma liga (default) o global.
+
+        ``same_league=True`` entrena y arma features solo con la competición
+        del partido (Poisson/Elo/ML/GBM + stats). ``False`` usa todo el
+        histórico (comportamiento clásico).
+        """
         if model_name != "all" and model_name not in ALL_MODELS:
             raise ValueError(f"modelo desconocido: {model_name}. Válidos: 'all', poisson, elo, ml, gbm, ensemble")
 
@@ -34,13 +41,17 @@ class PredictionService:
         if match is None:
             raise ValueError(f"no existe partido con id {match_id}")
 
-        models = self._trainer.train_all()
-        features = self._trainer.feature_builder().build_for_match(
+        history = self._history
+        if same_league:
+            history = CompetitionScopedHistory(self._history, match.competition_id)
+        trainer = ModelTrainer(history, self._settings)
+        models = trainer.train_all()
+        features = trainer.feature_builder().build_for_match(
             TargetMatch(match_id=match.id, date=match.date, home_team_id=match.home_team_id, away_team_id=match.away_team_id)
         )
 
-        # Entrenar modelo de estadísticas con todo el histórico
-        all_matches = self._history.get_all_matches()
+        # Entrenar modelo de estadísticas con el histórico (del mismo alcance)
+        all_matches = history.get_all_matches()
         self._stats_model.fit(all_matches)
         stats_pred = self._stats_model.expected_counts(match.home_team_id, match.away_team_id)
         fields = {f"home_{s}": stats_pred[s][0] for s in STATISTIC_METRICS}

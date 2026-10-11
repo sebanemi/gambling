@@ -32,6 +32,12 @@ def backtest(
         int,
         typer.Option(help="Mínimo de partidos previos por paso antes de predecir."),
     ] = 5,
+    competition: Annotated[
+        str | None,
+        typer.Option(
+            help="Solo esta liga (p.ej. 'Liga Profesional'). Default: todas."
+        ),
+    ] = None,
 ) -> None:
     """Backtest walk-forward: entrena por partido con solo el pasado."""
     names = tuple(ALL_MODELS) if model == "all" else (model,)
@@ -43,8 +49,20 @@ def backtest(
 
     factory = session_factory()
     with factory() as session:
+        from football_predictor.database.repositories.competition import CompetitionRepository
+
+        competition_id: int | None = None
+        if competition is not None:
+            competition_id = CompetitionRepository(session).resolve(competition)
+            if competition_id is None:
+                available = CompetitionRepository(session).names()
+                console.print(
+                    f"[red]Error:[/red] competición desconocida '{competition}'. "
+                    f"Disponibles: {', '.join(available)}."
+                )
+                raise typer.Exit(code=1)
         provider = MatchHistoryRepository(session)
-        report = Backtester(provider, min_prior_matches=min_matches).run(names)
+        report = Backtester(provider, min_prior_matches=min_matches, competition_id=competition_id).run(names)
 
     _render(report.evaluated, report.min_prior_matches, report.reports)
     _render_optimal_weights(report)

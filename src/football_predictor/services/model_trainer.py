@@ -17,6 +17,7 @@ from football_predictor.models.ensemble import EnsembleModel
 from football_predictor.models.gbm import GBMModel
 from football_predictor.models.ml import MLModel
 from football_predictor.models.poisson import PoissonModel
+from football_predictor.services.scoped_history import CompetitionScopedHistory
 
 MODEL_POISSON = "poisson"
 MODEL_ELO = "elo"
@@ -36,7 +37,16 @@ def parse_ensemble_weights(raw: str) -> list[float]:
 
 
 class ModelTrainer:
-    def __init__(self, history_provider: HistoryProvider, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        history_provider: HistoryProvider,
+        settings: Settings | None = None,
+        competition_id: int | None = None,
+    ) -> None:
+        """Si ``competition_id`` se indica, entrena y arma features solo con
+        esa competición (same-league). None = todo el histórico (clásico)."""
+        if competition_id is not None:
+            history_provider = CompetitionScopedHistory(history_provider, competition_id)
         self._provider = history_provider
         self._settings = settings or get_settings()
 
@@ -81,7 +91,11 @@ class ModelTrainer:
             draw_sigma=self._settings.models_elo_draw_sigma,
         )
 
-        ml = MLModel(random_state=self._settings.models_ml_random_state)
+        ml = MLModel(
+            random_state=self._settings.models_ml_random_state,
+            class_weight=self._settings.models_ml_class_weight,
+            c=self._settings.models_ml_c,
+        )
         ml.fit(vectors, outcomes)
 
         gbm = GBMModel(
@@ -90,6 +104,7 @@ class ModelTrainer:
             max_depth=self._settings.models_gbm_max_depth,
             learning_rate=self._settings.models_gbm_learning_rate,
             random_state=self._settings.models_gbm_random_state,
+            class_weight=self._settings.models_gbm_class_weight,
         )
         gbm.fit(vectors, outcomes)
 

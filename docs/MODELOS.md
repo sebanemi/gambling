@@ -88,17 +88,39 @@ Convierte el rating **pre-partido** (ya viene en las features) en probabilidades
 
 - **Regresión logística multinomial** (`StandardScaler → LogisticRegression`,
   `max_iter=2000`, `random_state=42`) sobre las 128 columnas.
+- `MODELS_ML_C=0.001`: con 128 features e historiales cortos (inicio del
+  walk-forward), `C=1.0` sobreajusta y deja log-loss 1.36 (peor que uniforme
+  1.10); `C=0.001` lo baja a 1.07 y sube top-1 de 0.37 a 0.43 (medido,
+  Liga Profesional, 1362 pasos).
+- `MODELS_ML_CLASS_WEIGHT=none`: `balanced` deforma las probabilidades y
+  empeora log-loss *y* top-1 en estos datos (1.11/0.37 vs 1.07/0.43 con
+  `C=0.01`). `none` calibra mejor.
 - Descarta columnas de varianza nula (evita NaN en el scaler).
 - Se entrena con features **anti-leakage** por partido (puerta temporal) y
   etiquetas `Outcome(1X2)` de los goles reales.
 - No estima goles.
 
+### GBM (`gbm.py`)
+
+- Gradient boosting multiclase (backends `lightgbm`/`xgboost`/`catboost`)
+  sobre las mismas 128 columnas que el ML.
+- Chico y playo por defecto (`MODELS_GBM_N_ESTIMATORS=20`,
+  `MODELS_GBM_MAX_DEPTH=3`, `MODELS_GBM_LEARNING_RATE=0.05`): 100 árboles
+  prof. 6 sobreajustan (log-loss 1.31); 20x3 lo bajan a 1.08 con top-1 0.43.
+- `MODELS_GBM_CLASS_WEIGHT=none`: ponderar por clase deforma las probs,
+  igual que en el ML (pesos de muestra 1/frecuencia solo con `balanced`).
+- **Mapeo por `classes_`**: las columnas de `predict_proba` se asignan por
+  `model.classes_` y no por posición (correcto en pasos walk-forward
+  tempranos con solo 2 clases vistas).
+- No estima goles.
+
 ### Ensemble (`ensemble.py`)
 
-- Media ponderada de probabilidades 1X2 de `[poisson, elo, ml]`.
-- Pesos por defecto (settings `MODELS_ENSEMBLE_WEIGHTS`, se normalizan) estimados
-  por **log-loss walk-forward** sobre el histórico: `0.486, 0.465, 0.049`.
-  Recalculá los tuyos con `predictor backtest` (tabla "Pesos óptimos").
+- Media ponderada de probabilidades 1X2 de `[poisson, elo, ml, gbm]`.
+- Pesos por defecto (settings `MODELS_ENSEMBLE_WEIGHTS`, se normalizan,
+  4 valores poisson,elo,ml,gbm): `0.4,0.3,0.2,0.1`. Son un punto de partida:
+  recalculá los tuyos con `predictor backtest` (tabla "Pesos óptimos",
+  mezcla convexa que minimiza el log-loss walk-forward) y setéalos en `.env`.
 - Goles esperados = promedio solo de los modelos que los producen (poisson).
 - `ensemble_optimizer.py`: los pesos óptimos son la mezcla convexa que minimiza
   el log-loss; el problema es **estrictamente convexo** (`logsumexp`), SLSQP
@@ -107,9 +129,18 @@ Convierte el rating **pre-partido** (ya viene en las features) en probabilidades
 
 ### Claves y entrenador
 
-- Claves: `poisson`, `elo`, `ml`, `ensemble` (+ `all` en `predict-match`/`backtest`).
-- `ModelTrainer.train_all()` entrena los 4 y devuelve el dict.
-- `parse_ensemble_weights()` exige exactamente 3 floats con suma > 0.
+- Claves: `poisson`, `elo`, `ml`, `gbm`, `ensemble` (+ `all` en `predict-match`/`backtest`).
+- `ModelTrainer.train_all()` entrena los 5 y devuelve el dict.
+- `parse_ensemble_weights()` exige 3 o 4 floats (poisson,elo,ml[,gbm]) con suma > 0.
+- **Same-league por defecto** (`services/scoped_history.py`): se entrena y
+  arman features solo con la competición del partido (`predict-match` lo
+  deduce del fixture; `--all-leagues` lo desactiva; `backtest --competition
+  'Liga Profesional'` lo limita). Evita que ligas inconexas contaminen
+  Elo/forma/promedios y los priors del Poisson/ML.
+- Pesos medidos en Liga Profesional (1310 pasos post-dedupe, 2026-10-11,
+  modelos ya regularizados): `MODELS_ENSEMBLE_WEIGHTS=0.220,0.405,0.375,0.000`
+  (ensemble log-loss 1.0665 → 1.0664; el optimizador deja al GBM en 0: no
+  aporta sobre poisson/elo/ml en esta liga). Recalcular con `backtest`.
 
 ## Evaluación (`evaluation/`)
 
@@ -155,4 +186,11 @@ Walk-forward cronológico estricto:
 | `models_elo_draw_max` | 0.30 | gaussiana de empate |
 | `models_elo_draw_sigma` | 300.0 | gaussiana de empate |
 | `models_ml_random_state` | 42 | LogisticRegression |
-| `models_ensemble_weights` | `"0.4,0.3,0.3"` | EnsembleModel (poisson,elo,ml) |
+| `models_ml_c` | 0.001 | regularización (medido: 1.0 -> 1.36 LL) |
+| `models_ml_class_weight` | `"none"` | ponderado de clases (`balanced` = peor LL aquí) |
+| `models_gbm_backend` | `"lightgbm"` | backend del GBM |
+| `models_gbm_n_estimators` | 20 | árboles (medido: 100 -> 1.31 LL) |
+| `models_gbm_max_depth` | 3 | profundidad (medido: 6 -> sobreajuste) |
+| `models_gbm_learning_rate` | 0.05 | shrinkage |
+| `models_gbm_class_weight` | `"none"` | pesos de muestra (ver ML) |
+| `models_ensemble_weights` | `"0.4,0.3,0.2,0.1"` | EnsembleModel (poisson,elo,ml,gbm) |

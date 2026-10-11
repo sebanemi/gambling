@@ -9,7 +9,7 @@ from collections.abc import Sequence
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
-from football_predictor.domain.features import FeatureVector
+from football_predictor.domain.features import FeatureVector, feature_columns, matrix_from_vectors
 from football_predictor.models.base import Outcome, PredictionResult
 
 
@@ -23,6 +23,7 @@ class GBMModel:
         max_depth: int = 6,
         learning_rate: float = 0.1,
         random_state: int = 42,
+        class_weight: str | None = "balanced",
     ) -> None:
         """Initialize GBM model.
 
@@ -32,16 +33,19 @@ class GBMModel:
             max_depth: Maximum tree depth
             learning_rate: Learning rate (shrinkage)
             random_state: Random seed for reproducibility
+            class_weight: "balanced" pondera cada muestra con 1/frecuencia de
+                su clase (corrige el sesgo anti-empate); "none"/None lo desactiva.
         """
         self._backend = backend.lower()
         self._n_estimators = int(n_estimators)
         self._max_depth = int(max_depth)
         self._learning_rate = float(learning_rate)
         self._random_state = int(random_state)
+        self._class_weight = None if class_weight in (None, "none") else class_weight
 
         self._model: object | None = None
         self._scaler: StandardScaler | None = None
-        self._columns = list(_template().flatten().keys())
+        self._columns = list(feature_columns())
         self._active_columns: list[int] | None = None
 
         if self._backend not in ("lightgbm", "xgboost", "catboost"):
@@ -63,8 +67,7 @@ class GBMModel:
         """Create feature matrix in the fixed column order."""
         if not training_features:
             raise ValueError("make_matrix requiere al menos un ejemplo")
-        columns = list(_template().flatten().keys())
-        return np.array([[fv.flatten()[column] for column in columns] for fv in training_features], dtype=float)
+        return matrix_from_vectors(training_features)
 
     def fit_matrix(self, x: np.ndarray, y: np.ndarray) -> None:
         """Train from a pre-built feature matrix."""
@@ -88,6 +91,8 @@ class GBMModel:
         self._scaler = StandardScaler()
         x_scaled = self._scaler.fit_transform(x_active)
 
+        sample_weight = self._balanced_sample_weight(y)
+
         # Initialize the appropriate backend
         if self._backend == "lightgbm":
             self._model = self._init_lightgbm(x_scaled, y)
@@ -99,7 +104,24 @@ class GBMModel:
             raise ValueError(f"Unsupported backend: {self._backend}")
 
         # Fit the model
-        self._model.fit(x_scaled, y)
+        if sample_weight is not None:
+            try:
+                self._model.fit(x_scaled, y, sample_weight=sample_weight)
+            except TypeError:
+                # Backend sin soporte de sample_weight: entrena sin ponderar.
+                self._model.fit(x_scaled, y)
+        else:
+            self._model.fit(x_scaled, y)
+
+    def _balanced_sample_weight(self, y: np.ndarray) -> np.ndarray | None:
+        """Pesos 1/frecuencia por clase (None si balanceo desactivado)."""
+        if self._class_weight != "balanced":
+            return None
+        classes, counts = np.unique(y, return_counts=True)
+        if len(classes) < 2:
+            return None
+        weight_by_class = {int(c): len(y) / (len(classes) * n) for c, n in zip(classes, counts)}
+        return np.array([weight_by_class[int(v)] for v in y], dtype=float)
 
     def _init_lightgbm(self, x: np.ndarray, y: np.ndarray) -> object:
         """Initialize LightGBM classifier."""
@@ -150,12 +172,12 @@ class GBMModel:
 
     def _matrix(self, features: Sequence[FeatureVector], apply_mask: bool = True) -> np.ndarray:
         """Convert features to matrix."""
-        matrix = np.array([[fv.flatten()[column] for column in self._columns] for fv in features], dtype=float)
+        matrix = matrix_from_vectors(features)
         if apply_mask and self._active_columns is not None:
             matrix = matrix[:, self._active_columns]
         return matrix
 
-    def predict(self, features: FeatureVector) -> PredictionResult:
+    def predict(self, features: FeatureVector, *, include_snapshot: bool = True) -> PredictionResult:
         """Predict match outcome probabilities."""
         if self._model is None or self._scaler is None:
             raise ValueError("GBMModel.predict requiere fit() previo")
@@ -165,90 +187,25 @@ class GBMModel:
 
         probabilities = self._model.predict_proba(row_scaled)[0]
 
-        # Ensure probabilities are in the correct order (HOME, DRAW, AWAY)
-        # Some backends might return in different order
-        if len(probabilities) == 3:
+        # Mapeo por classes_ (no posicional): el orden de columnas de
+        # predict_proba sigue a model.classes_, que puede no ser [0,1,2]
+        # (p.ej. pasos walk-forward tempranos con solo 2 clases vistas).
+        if hasattr(self._model, "classes_"):
+            classes = list(self._model.classes_)
+            proba_dict = {Outcome(int(cls)): float(prob) for cls, prob in zip(classes, probabilities)}
+        elif len(probabilities) == 3:
             proba_dict = {
                 Outcome.HOME: float(probabilities[0]),
                 Outcome.DRAW: float(probabilities[1]),
                 Outcome.AWAY: float(probabilities[2]),
             }
         else:
-            # Fallback: use model's classes_ attribute if available
-            if hasattr(self._model, "classes_"):
-                classes = self._model.classes_
-                proba_dict = {Outcome(int(cls)): float(prob) for cls, prob in zip(classes, probabilities)}
-            else:
-                raise ValueError("Model returned unexpected probability shape")
+            raise ValueError("Model returned unexpected probability shape")
 
         return PredictionResult(
             match_id=features.match_id,
             home_win=proba_dict.get(Outcome.HOME, 0.0),
             draw=proba_dict.get(Outcome.DRAW, 0.0),
             away_win=proba_dict.get(Outcome.AWAY, 0.0),
-            features_snapshot=features.flatten(),
+            features_snapshot=features.flatten() if include_snapshot else None,
         )
-
-
-def _template() -> FeatureVector:
-    """FeatureVector template for column order."""
-    from datetime import date
-
-    from football_predictor.domain.features import TeamForm
-
-    return FeatureVector(
-        match_id=0,
-        home_team_id=0,
-        away_team_id=0,
-        date=date(2000, 1, 1),
-        home_elo=0.0,
-        away_elo=0.0,
-        elo_difference=0.0,
-        home_form=TeamForm(),
-        away_form=TeamForm(),
-        home_goals_for_avg=0.0,
-        home_goals_against_avg=0.0,
-        away_goals_for_avg=0.0,
-        away_goals_against_avg=0.0,
-        home_yellow_cards_for_avg=0.0,
-        home_yellow_cards_against_avg=0.0,
-        away_yellow_cards_for_avg=0.0,
-        away_yellow_cards_against_avg=0.0,
-        home_red_cards_for_avg=0.0,
-        home_red_cards_against_avg=0.0,
-        away_red_cards_for_avg=0.0,
-        away_red_cards_against_avg=0.0,
-        home_corners_for_avg=0.0,
-        home_corners_against_avg=0.0,
-        away_corners_for_avg=0.0,
-        away_corners_against_avg=0.0,
-        home_shots_for_avg=0.0,
-        home_shots_against_avg=0.0,
-        away_shots_for_avg=0.0,
-        away_shots_against_avg=0.0,
-        home_shots_on_target_for_avg=0.0,
-        home_shots_on_target_against_avg=0.0,
-        away_shots_on_target_for_avg=0.0,
-        away_shots_on_target_against_avg=0.0,
-        home_fouls_for_avg=0.0,
-        home_fouls_against_avg=0.0,
-        away_fouls_for_avg=0.0,
-        away_fouls_against_avg=0.0,
-        home_throw_ins_for_avg=0.0,
-        home_throw_ins_against_avg=0.0,
-        away_throw_ins_for_avg=0.0,
-        away_throw_ins_against_avg=0.0,
-        home_penalties_for_avg=0.0,
-        home_penalties_against_avg=0.0,
-        away_penalties_for_avg=0.0,
-        away_penalties_against_avg=0.0,
-        home_xg_for_avg=0.0,
-        home_xg_against_avg=0.0,
-        away_xg_for_avg=0.0,
-        away_xg_against_avg=0.0,
-        home_possession_for_avg=0.0,
-        home_possession_against_avg=0.0,
-        away_possession_for_avg=0.0,
-        away_possession_against_avg=0.0,
-        home_advantage=0.0,
-    )

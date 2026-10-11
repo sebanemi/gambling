@@ -15,6 +15,10 @@ Implementación por fases, cada una con salida verificable (tests). Estado actua
 | 9 | Documentación | `README.md` completo + `docs/` | ✅ |
 | 10 | Rendimiento | `FeatureStream` O(n), backtest con matriz precomputada + warm-start Poisson | ✅ |
 | 11 | Stats ricas | Persistencia xG/posesión en BD + predicción y features para 10 métricas | ✅ |
+| 12 | Betting simulation | Cuotas reales (`match_odds` + `import-odds`), `simulate-betting` walk-forward O(n) con persistencia, `value-bets`, staking (fixed/kelly/proportional/confidence) | ✅ |
+| 13 | Same-league + comandos | Scope por competición (default en `predict-match`, `--all-leagues`, `backtest --competition`), comando `commands`, nivel de confianza COIN-FLIP/LEAN/CONFIDENT en predicciones | ✅ |
+| 14 | Datos argentinos | Backfill ESPN sin clave (`scripts/backfill_espn_arg.py`, ~1.300 partidos 2024-2026), fix de duplicados UTC-vs-local | ✅ |
+| 15 | Calibración ML/GBM | Grid walk-forward: ML `C=0.001` + sin ponderar (LL 1.36→1.07), GBM 20×3 + sin ponderar (LL 1.31→1.08); pesos ensemble medidos por liga | ✅ |
 
 ## Notas de diseño transversal
 

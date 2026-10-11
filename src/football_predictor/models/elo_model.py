@@ -25,7 +25,7 @@ class EloModel:
         self._draw_max = float(draw_max)
         self._draw_sigma = float(draw_sigma)
 
-    def predict(self, features: FeatureVector) -> PredictionResult:
+    def predict(self, features: FeatureVector, *, include_snapshot: bool = True) -> PredictionResult:
         home_rating = features.home_elo + features.home_advantage
         p_home = EloCalculator.expected_score(home_rating, features.away_elo)
         rating_diff = home_rating - features.away_elo
@@ -38,5 +38,5 @@ class EloModel:
             home_win=p_home * residual,
             draw=draw_prob,
             away_win=(1.0 - p_home) * residual,
-            features_snapshot=features.flatten(),
+            features_snapshot=features.flatten() if include_snapshot else None,
         )

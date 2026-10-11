@@ -79,15 +79,43 @@ class Settings(BaseSettings):
     models_elo_draw_sigma: float = 300.0
     # Modelo ML: semilla fija para determinismo.
     models_ml_random_state: int = 42
-    # Modelo GBM: backend y hiperparámetros
+    # Modelo ML: ponderación de clases. Medido en Liga Profesional (1362
+    # pasos walk-forward): "balanced" deforma las probs y empeora log-loss
+    # (1.11) y top-1; "none" calibra mejor (1.07) y acierta más (0.43).
+    # Valores: "balanced" o "none".
+    models_ml_class_weight: str = "none"
+    # Modelo ML: C inverso de regularización (más chico = más regularizado).
+    # Medido: C=1.0 -> log-loss 1.36; C=0.001 -> 1.07 (128 features,
+    # historiales cortos al inicio del walk-forward).
+    models_ml_c: float = 0.001
+    # Modelo GBM: backend y hiperparámetros. Medido en Liga Profesional:
+    # 100 árboles prof.6 sobreajustan (log-loss 1.31); pocos árboles
+    # playos calibran mejor (20x3 -> 1.08). Sin ponderar clases, igual
+    # que el ML (balanced deforma las probs).
     models_gbm_backend: str = "lightgbm"  # lightgbm, xgboost, catboost
-    models_gbm_n_estimators: int = 100
-    models_gbm_max_depth: int = 6
-    models_gbm_learning_rate: float = 0.1
+    models_gbm_n_estimators: int = 20
+    models_gbm_max_depth: int = 3
+    models_gbm_learning_rate: float = 0.05
     models_gbm_random_state: int = 42
+    # Modelo GBM: balanceo de clases ("balanced" = pesos inversos a la
+    # frecuencia; "none" = sin ponderar, recomendado: ver arriba).
+    models_gbm_class_weight: str = "none"
     # Pesos del ensemble "poisson,elo,ml,gbm" (se normalizan). Estimados por
     # log-loss walk-forward sobre el histórico disponible.
     models_ensemble_weights: str = "0.4,0.3,0.2,0.1"
+
+    # --- Betting ---
+    # Estrategia de apuestas
+    betting_strategy: str = "kelly"  # fixed, kelly, proportional, confidence
+    betting_initial_bankroll: float = 1000.0
+    betting_kelly_fraction: float = 0.25  # fracción de Kelly para seguridad
+    betting_fixed_stake: float = 10.0
+    betting_proportional_percentage: float = 0.02  # 2% del bankroll
+    betting_max_stake_percentage: float = 0.05  # 5% máximo por apuesta
+    betting_value_threshold: float = 0.05  # 5% edge mínimo
+    betting_min_odds: float = 1.1
+    betting_max_odds: float = 10.0
+    betting_backtest_min_matches: int = 10
 
     @property
     def database_url(self) -> str:

@@ -42,13 +42,48 @@ def _split_sections(text: str) -> dict[str, str]:
 COMMANDS = {
     "init-db",
     "import-data",
+    "import-odds",
     "status",
     "predict-match",
     "evaluate",
     "backtest",
+    "simulate-betting",
+    "value-bets",
     "collect-sofascore",
     "help",
+    "commands",
 }
+
+COMMAND_SUMMARY: dict[str, str] = {
+    "init-db": "Crea/actualiza el esquema de la BD (alembic upgrade head).",
+    "import-data": "Importa partidos o catálogo (CSV o API externa).",
+    "import-odds": "Importa cuotas históricas desde CSV.",
+    "status": "Estado de la BD: revisión aplicada y head.",
+    "predict-match": "Predice un partido 1X2 con nivel de confianza.",
+    "evaluate": "Evalúa predicciones guardadas sobre partidos jugados.",
+    "backtest": "Walk-forward sin leakage + pesos óptimos del ensemble.",
+    "simulate-betting": "Simula apuestas con cuotas reales (walk-forward).",
+    "value-bets": "Apuestas de valor en fixtures programados.",
+    "collect-sofascore": "Recolecta stats de SofaScore (requiere IP residencial).",
+    "help": "Guía completa (o de un comando: help predict-match).",
+    "commands": "Lista corta de todos los comandos (alias de --help).",
+}
+
+
+def list_commands() -> None:
+    """Lista corta de comandos (equivale a `predictor --help`)."""
+    from rich.table import Table
+
+    table = Table(title="Comandos de predictor (también: predictor --help)")
+    table.add_column("Comando", style="cyan")
+    table.add_column("Qué hace")
+    for name in sorted(COMMAND_SUMMARY):
+        table.add_row(name, COMMAND_SUMMARY[name])
+    console.print(table)
+    console.print(
+        "[dim]Detalles: predictor help / predictor help <comando> / "
+        "predictor <comando> --help[/dim]"
+    )
 
 
 def help_command(
@@ -78,6 +113,9 @@ def help_command(
                 f"Comandos: {', '.join(sorted(COMMANDS))}"
             )
             raise typer.Exit(code=1)
+        if target == "commands":
+            list_commands()
+            return
         section = sections.get(target)
         if section is None:
             console.print(f"[dim]El comando '{target}' aún no tiene guía propia.[/dim]")

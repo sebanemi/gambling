@@ -33,6 +33,8 @@ from football_predictor.models.base import PredictionResult
 
 _MAX_GOALS = 15
 _RHO_BOUND = 0.5
+# Tabla de factoriales para la PMF (evita math.factorial por celda en predict).
+_FACTORIALS = tuple(math.factorial(goles) for goles in range(_MAX_GOALS))
 
 
 class PoissonModel:
@@ -190,7 +192,7 @@ class PoissonModel:
 
     @staticmethod
     def _poisson_pmf(goles: int, lam: float) -> float:
-        return math.exp(-lam) * lam ** goles / math.factorial(goles)
+        return math.exp(-lam) * lam ** goles / _FACTORIALS[goles]
 
     def _joint_distribution(self, lam_home: float, lam_away: float) -> np.ndarray:
         pmf_home = [self._poisson_pmf(x, lam_home) for x in range(_MAX_GOALS)]
@@ -210,7 +212,7 @@ class PoissonModel:
             raise ValueError("probabilidad conjunta nula en el modelo Poisson")
         return outer / total
 
-    def predict(self, features: FeatureVector) -> PredictionResult:
+    def predict(self, features: FeatureVector, *, include_snapshot: bool = True) -> PredictionResult:
         lam_home, lam_away = self.expected_goals(features.home_team_id, features.away_team_id)
         joint = self._joint_distribution(lam_home, lam_away)
 
@@ -225,5 +227,5 @@ class PoissonModel:
             away_win=away_win,
             home_goals=lam_home,
             away_goals=lam_away,
-            features_snapshot=features.flatten(),
+            features_snapshot=features.flatten() if include_snapshot else None,
         )

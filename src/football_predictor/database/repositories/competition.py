@@ -15,6 +15,18 @@ class CompetitionRepository:
         ).all()
         return {(name, country): comp_id for comp_id, name, country in rows}
 
+    def resolve(self, name: str) -> int | None:
+        """Id por nombre exacto (case-insensitive); None si no existe."""
+        wanted = name.strip().lower()
+        for (comp_name, _country), comp_id in self.all_ids().items():
+            if comp_name.strip().lower() == wanted:
+                return comp_id
+        return None
+
+    def names(self) -> list[str]:
+        """Nombres de competiciones disponibles (para mensajes de error)."""
+        return sorted({name for (name, _country) in self.all_ids()})
+
     def create(self, *, name: str, country: str = "", type: str = "league") -> int:
         competition = Competition(name=name, country=country, type=type)
         self._session.add(competition)

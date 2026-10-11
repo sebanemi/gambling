@@ -112,6 +112,30 @@ predictor import-data --provider standings --competition ENG.1 --season 2024
 predictor import-data --provider playerelo --competition premier
 ```
 
+### Backfill Liga Profesional (ESPN, sin clave)
+
+Ningún provider con clave cubre la liga argentina con partidos
+(football-data solo trae Copa Libertadores; five-dollar solo top-5
+europeas). El backfill se hace con el scoreboard público de ESPN
+(`site.api.espn.com/.../soccer/arg.1/scoreboard`, sin auth):
+
+```bash
+# 1. Descargar resultados (día por día, ~0.15 s entre requests)
+.venv/Scripts/python.exe scripts/backfill_espn_arg.py --from 2024-01-01 --to 2026-10-10 --out data/espn_arg_backfill.csv
+
+# 2. Importar (upsert: re-corridas cuentan como duplicados, no duplican)
+predictor import-data --path data/espn_arg_backfill.csv
+```
+
+Cobertura conseguida el 2026-10-11: **~1.300 partidos** may-2024 → oct-2026
+(antes: 143). Convenciones: fecha = día local `America/Argentina/Buenos_Aires`
+(igual que `scripts/fetch_espn_arg.py`; usar fecha UTC crea duplicados
+desplazados un día — se detectan como parejas adyacentes mismo marcador y
+se elimina la fila tardía), temporada = año local, competición
+`Liga Profesional`. Solo eventos `completed` con marcador entero; los nombres
+de equipo pasan por el mismo `NameNormalizer` del CSV (fusión limpia:
+2 equipos nuevos en 1.315 filas).
+
 ### Semántica del resumen de importación
 
 | Campo | Significado |
